@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>中学受験算数 インタラクティブ教材 | ココロミル算数</title>
+<style>
+  :root {
+    --ink: #24354d;
+    --navy: #1d3a6b;
+    --red: #d9463e;
+    --line: #dbe4ee;
+    --paper: #f2f5f8;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    font-family: "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic", sans-serif;
+    color: var(--ink);
+    background: var(--paper);
+    background-image:
+      linear-gradient(rgba(41,72,120,0.055) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(41,72,120,0.055) 1px, transparent 1px);
+    background-size: 26px 26px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  header {
+    background: #fff;
+    border-bottom: 1px solid var(--line);
+    padding: 8px 16px;
+    z-index: 5;
+  }
+  .hrow { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  h1 {
+    font-size: 15px; letter-spacing: 0.04em;
+    display: flex; align-items: center; gap: 9px; white-space: nowrap;
+  }
+  h1::before {
+    content: ""; width: 12px; height: 12px; background: var(--red);
+    border-radius: 3px; transform: rotate(45deg); flex: none;
+  }
+  h1 small { font-weight: normal; color: #7688a0; font-size: 12px; margin-left: 4px; }
+
+  /* 単元セレクタ(第1階層) */
+  #units { display: flex; gap: 6px; flex-wrap: wrap; }
+  .unit {
+    font-family: inherit; font-size: 12.5px; font-weight: bold;
+    padding: 5px 13px; border: none; border-radius: 999px;
+    background: #eef2f7; color: #5a6b83; cursor: pointer; transition: background .15s, color .15s;
+  }
+  .unit:hover { background: #e3ebf4; }
+  .unit.active { background: var(--red); color: #fff; }
+
+  /* 問題タブ(第2階層) */
+  #tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 7px; }
+  .tab {
+    font-family: inherit; font-size: 12px; font-weight: bold;
+    padding: 6px 11px; border: 1.5px solid var(--navy); border-radius: 999px;
+    background: #fff; color: var(--navy); cursor: pointer; transition: background .15s, color .15s;
+  }
+  .tab:hover { background: #eaf1fa; }
+  .tab.active { background: var(--navy); color: #fff; }
+  #src { font-size: 11.5px; color: #8a99ad; margin-left: auto; white-space: nowrap; }
+
+  #stage { position: relative; flex: 1; min-height: 0; }
+  #stage canvas { display: block; }
+
+  #deck {
+    flex: none; background: #fff; border-top: 1px solid var(--line);
+    padding: 12px 12px 10px; display: flex; justify-content: center; z-index: 4;
+  }
+  #panel { width: min(820px, 100%); padding: 2px 4px 0; }
+  #panel .row1 { display: flex; align-items: center; gap: 10px; margin-bottom: 7px; }
+  #stepchip {
+    background: var(--red); color: #fff; font-size: 12px; font-weight: bold;
+    border-radius: 7px; padding: 3px 10px; letter-spacing: 0.05em; white-space: nowrap;
+  }
+  #dots { display: flex; gap: 5px; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: #ccd6e2; }
+  .dot.on { background: var(--navy); }
+  #caption { font-size: 15px; line-height: 1.65; }
+  #formula {
+    margin-top: 8px; background: #eef3fa; border-left: 4px solid var(--navy);
+    border-radius: 0 8px 8px 0; padding: 7px 12px; font-size: 14px; font-weight: bold;
+    color: var(--navy); display: none;
+  }
+  #controls { display: flex; gap: 8px; margin-top: 11px; }
+  #controls button {
+    font-family: inherit; font-size: 14px; font-weight: bold; border-radius: 9px;
+    padding: 9px 0; cursor: pointer; border: 1.5px solid var(--navy); transition: opacity .15s, background .15s;
+  }
+  #prev, #replay { flex: 1; background: #fff; color: var(--navy); }
+  #prev:hover:not(:disabled), #replay:hover { background: #eaf1fa; }
+  #next { flex: 2.2; background: var(--navy); color: #fff; }
+  #next:hover:not(:disabled) { background: #274b87; }
+  #controls button:disabled { opacity: 0.35; cursor: default; }
+  #hint { text-align: center; font-size: 11px; color: #97a5b8; margin-top: 7px; }
+  @media (max-width: 640px) {
+    header { padding: 7px 10px; }
+    #src { display: none; }
+    #caption { font-size: 13.5px; }
+    #hint { display: none; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="hrow">
+    <h1>中学受験算数 <small>インタラクティブ教材</small></h1>
+    <div id="units"></div>
+    <div id="src"></div>
+  </div>
+  <div id="tabs"></div>
+</header>
+<div id="stage"></div>
+<div id="deck">
+  <div id="panel">
+    <div class="row1">
+      <span id="stepchip">手順 1 / 5</span>
+      <div id="dots"></div>
+    </div>
+    <div id="caption"></div>
+    <div id="formula"></div>
+    <div id="controls">
+      <button id="prev">◀ 前へ</button>
+      <button id="replay">↻ もう一度</button>
+      <button id="next">次へ ▶</button>
+    </div>
+    <div id="hint">キーボードの ← → でも操作できます</div>
+  </div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>

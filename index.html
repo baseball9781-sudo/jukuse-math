@@ -1,0 +1,3512 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>中学受験算数 インタラクティブ教材 | ココロミル算数</title>
+<style>
+  :root {
+    --ink: #24354d;
+    --navy: #1d3a6b;
+    --red: #d9463e;
+    --line: #dbe4ee;
+    --paper: #f2f5f8;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    font-family: "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic", sans-serif;
+    color: var(--ink);
+    background: var(--paper);
+    background-image:
+      linear-gradient(rgba(41,72,120,0.055) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(41,72,120,0.055) 1px, transparent 1px);
+    background-size: 26px 26px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  header {
+    background: #fff;
+    border-bottom: 1px solid var(--line);
+    padding: 8px 16px;
+    z-index: 5;
+  }
+  .hrow { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  h1 {
+    font-size: 15px; letter-spacing: 0.04em;
+    display: flex; align-items: center; gap: 9px; white-space: nowrap;
+  }
+  h1::before {
+    content: ""; width: 12px; height: 12px; background: var(--red);
+    border-radius: 3px; transform: rotate(45deg); flex: none;
+  }
+  h1 small { font-weight: normal; color: #7688a0; font-size: 12px; margin-left: 4px; }
+
+  /* 単元セレクタ(第1階層) */
+  #units { display: flex; gap: 6px; flex-wrap: wrap; }
+  .unit {
+    font-family: inherit; font-size: 12.5px; font-weight: bold;
+    padding: 5px 13px; border: none; border-radius: 999px;
+    background: #eef2f7; color: #5a6b83; cursor: pointer; transition: background .15s, color .15s;
+  }
+  .unit:hover { background: #e3ebf4; }
+  .unit.active { background: var(--red); color: #fff; }
+
+  /* 問題タブ(第2階層) */
+  #tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 7px; }
+  .tab {
+    font-family: inherit; font-size: 12px; font-weight: bold;
+    padding: 6px 11px; border: 1.5px solid var(--navy); border-radius: 999px;
+    background: #fff; color: var(--navy); cursor: pointer; transition: background .15s, color .15s;
+  }
+  .tab:hover { background: #eaf1fa; }
+  .tab.active { background: var(--navy); color: #fff; }
+  #src { font-size: 11.5px; color: #8a99ad; margin-left: auto; white-space: nowrap; }
+
+  #stage { position: relative; flex: 1; min-height: 0; }
+  #stage canvas { display: block; }
+
+  #deck {
+    flex: none; background: #fff; border-top: 1px solid var(--line);
+    padding: 12px 12px 10px; display: flex; justify-content: center; z-index: 4;
+  }
+  #panel { width: min(820px, 100%); padding: 2px 4px 0; }
+  #panel .row1 { display: flex; align-items: center; gap: 10px; margin-bottom: 7px; }
+  #stepchip {
+    background: var(--red); color: #fff; font-size: 12px; font-weight: bold;
+    border-radius: 7px; padding: 3px 10px; letter-spacing: 0.05em; white-space: nowrap;
+  }
+  #dots { display: flex; gap: 5px; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: #ccd6e2; }
+  .dot.on { background: var(--navy); }
+  #caption { font-size: 15px; line-height: 1.65; }
+  #formula {
+    margin-top: 8px; background: #eef3fa; border-left: 4px solid var(--navy);
+    border-radius: 0 8px 8px 0; padding: 7px 12px; font-size: 14px; font-weight: bold;
+    color: var(--navy); display: none;
+  }
+  #controls { display: flex; gap: 8px; margin-top: 11px; }
+  #controls button {
+    font-family: inherit; font-size: 14px; font-weight: bold; border-radius: 9px;
+    padding: 9px 0; cursor: pointer; border: 1.5px solid var(--navy); transition: opacity .15s, background .15s;
+  }
+  #prev, #replay { flex: 1; background: #fff; color: var(--navy); }
+  #prev:hover:not(:disabled), #replay:hover { background: #eaf1fa; }
+  #next { flex: 2.2; background: var(--navy); color: #fff; }
+  #next:hover:not(:disabled) { background: #274b87; }
+  #controls button:disabled { opacity: 0.35; cursor: default; }
+  #hint { text-align: center; font-size: 11px; color: #97a5b8; margin-top: 7px; }
+  @media (max-width: 640px) {
+    header { padding: 7px 10px; }
+    #src { display: none; }
+    #caption { font-size: 13.5px; }
+    #hint { display: none; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="hrow">
+    <h1>中学受験算数 <small>インタラクティブ教材</small></h1>
+    <div id="units"></div>
+    <div id="src"></div>
+  </div>
+  <div id="tabs"></div>
+</header>
+<div id="stage"></div>
+<div id="deck">
+  <div id="panel">
+    <div class="row1">
+      <span id="stepchip">手順 1 / 5</span>
+      <div id="dots"></div>
+    </div>
+    <div id="caption"></div>
+    <div id="formula"></div>
+    <div id="controls">
+      <button id="prev">◀ 前へ</button>
+      <button id="replay">↻ もう一度</button>
+      <button id="next">次へ ▶</button>
+    </div>
+    <div id="hint">キーボードの ← → でも操作できます</div>
+  </div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+
+/* ===== src/math.js ===== */
+/* ============================================================
+   rittai-anim 幾何コア (THREE非依存・純関数)
+   - splitPolyhedron: 凸多面体を平面で2分割し切り口を返す
+   - computeUnfold  : 三角すいの展開ヒンジ角を計算
+   - solveWaterLevel: おもり沈めの水位を反復計算
+   ============================================================ */
+
+// ---- vec utils ([x,y,z]) ----
+const vAdd = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
+const vSub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+const vScale = (a, s) => [a[0] * s, a[1] * s, a[2] * s];
+const vDot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+const vCross = (a, b) => [
+  a[1] * b[2] - a[2] * b[1],
+  a[2] * b[0] - a[0] * b[2],
+  a[0] * b[1] - a[1] * b[0],
+];
+const vLen = (a) => Math.hypot(a[0], a[1], a[2]);
+const vNorm = (a) => vScale(a, 1 / vLen(a));
+const vLerp = (a, b, t) => [
+  a[0] + (b[0] - a[0]) * t,
+  a[1] + (b[1] - a[1]) * t,
+  a[2] + (b[2] - a[2]) * t,
+];
+
+// ---- ロドリゲス回転: point を (origin, axis[単位]) まわりに angle 回転 ----
+function rotAxis(p, origin, axis, angle) {
+  const v = vSub(p, origin);
+  const c = Math.cos(angle), s = Math.sin(angle);
+  const term1 = vScale(v, c);
+  const term2 = vScale(vCross(axis, v), s);
+  const term3 = vScale(axis, vDot(axis, v) * (1 - c));
+  return vAdd(origin, vAdd(vAdd(term1, term2), term3));
+}
+
+/* ============================================================
+   凸多面体の平面分割
+   verts: [[x,y,z],...]  faces: 頂点indexのループ(外向き) plane: {n:[..], d}
+   戻り値: { below:[面(点配列)…], above:[…], cap:[点…(nに対しCCW)] }
+   below = n·x <= d 側
+   ============================================================ */
+function splitPolyhedron(verts, faces, plane) {
+  const EPS = 1e-7;
+  const sd = (p) => vDot(plane.n, p) - plane.d;
+  const below = [], above = [];
+  const capMap = new Map();
+  const key = (p) => p.map((x) => Math.round(x * 1e4)).join(",");
+
+  for (const f of faces) {
+    const pts = f.map((i) => verts[i]);
+    const outB = [], outA = [];
+    for (let i = 0; i < pts.length; i++) {
+      const a = pts[i], b = pts[(i + 1) % pts.length];
+      const da = sd(a), db = sd(b);
+      if (da <= EPS) outB.push(a);
+      if (da >= -EPS) outA.push(a);
+      if (Math.abs(da) <= EPS) capMap.set(key(a), a); // 平面上の頂点も切り口に含める
+      if ((da < -EPS && db > EPS) || (da > EPS && db < -EPS)) {
+        const t = da / (da - db);
+        const p = vLerp(a, b, t);
+        outB.push(p); outA.push(p);
+        capMap.set(key(p), p);
+      }
+    }
+    if (outB.length >= 3) below.push(outB);
+    if (outA.length >= 3) above.push(outA);
+  }
+
+  // 切り口の点を平面内で角度ソート (nに対してCCW)
+  const capPts = [...capMap.values()];
+  let cap = [];
+  if (capPts.length >= 3) {
+    const c = capPts.reduce((s, p) => vAdd(s, p), [0, 0, 0]).map((x) => x / capPts.length);
+    const n = vNorm(plane.n);
+    let u = vCross(n, Math.abs(n[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0]);
+    u = vNorm(u);
+    const v = vCross(n, u);
+    cap = capPts
+      .map((p) => {
+        const r = vSub(p, c);
+        return { p, ang: Math.atan2(vDot(r, v), vDot(r, u)) };
+      })
+      .sort((a, b) => a.ang - b.ang)
+      .map((o) => o.p);
+  }
+  return { below, above, cap };
+}
+
+
+/* 汎用ヒンジ角: 床上のヒンジ辺(a-b)を軸に、点p0(床の上方)を
+   固定領域の重心cFixと反対側へ倒して床に落とす回転角を返す */
+function hingeAlpha(a, b, p0, cFix) {
+  const axis = vNorm(vSub(b, a));
+  let dir = vSub(vScale(vAdd(a, b), 0.5), cFix);
+  dir = vSub(dir, vScale(axis, vDot(dir, axis)));
+  dir[1] = 0;
+  const d = vNorm(dir);
+  let q = vSub(p0, a);
+  q = vSub(q, vScale(axis, vDot(q, axis)));
+  const qn = vNorm(q);
+  const cr = vCross(qn, d);
+  return { axis, alpha: Math.atan2(vDot(cr, axis), vDot(qn, d)) };
+}
+
+/* ============================================================
+   三角すい O-PQR の展開計算
+   面 fixedFace を床(y=0)に固定し、残り3面をヒンジで開く。
+   solid: {verts:{name:[x,y,z]}, faces:[ [names...] ], fixed:"OQR面のname配列"}
+   戻り値: {
+     T,                    // 変換後の頂点座標 {name:[x,y,z]}
+     moving: [{names:[a,b,apex], a,b,p0, axis, alpha}],  // ヒンジ情報
+     flat:   [apexの展開後座標,...],
+     center                // シーン中心(カメラ用)
+   }
+   ============================================================ */
+function computeUnfold(vertsIn, fixedNames, movingDefs) {
+  // fixedNames = [n0,n1,n2]: 床に置く面 / movingDefs = [{hinge:[a,b], apex:c}, ...]
+  const O = vertsIn[fixedNames[0]], Q = vertsIn[fixedNames[1]], R = vertsIn[fixedNames[2]];
+  // 面の法線。頂点(apex)側が +y になるよう符号調整
+  let n = vNorm(vCross(vSub(Q, O), vSub(R, O)));
+  const anyApex = vertsIn[movingDefs[0].apex];
+  if (vDot(vSub(anyApex, O), n) < 0) n = vScale(n, -1);
+  const origin = Q;
+  const xhat = vNorm(vSub(R, Q));
+  const yhat = n;
+  const zhat = vCross(xhat, yhat);
+  const toWorld = (p) => {
+    const d = vSub(p, origin);
+    return [vDot(d, xhat), vDot(d, yhat), vDot(d, zhat)];
+  };
+  const T = {};
+  for (const k in vertsIn) T[k] = toWorld(vertsIn[k]);
+
+  // 固定面の重心 (床上)
+  const cFix = vScale(vAdd(vAdd(T[fixedNames[0]], T[fixedNames[1]]), T[fixedNames[2]]), 1 / 3);
+
+  const moving = movingDefs.map((def) => {
+    const a = T[def.hinge[0]], b = T[def.hinge[1]], p0 = T[def.apex];
+    const axis = vNorm(vSub(b, a));
+    // 開く方向 d: ヒンジ中点から固定面重心と逆向き・軸に垂直な床方向
+    let dir = vSub(vScale(vAdd(a, b), 0.5), cFix);
+    dir = vSub(dir, vScale(axis, vDot(dir, axis)));
+    dir[1] = 0;
+    const d = vNorm(dir);
+    // 現在のapex位置の軸垂直成分 q
+    let q = vSub(p0, a);
+    q = vSub(q, vScale(axis, vDot(q, axis)));
+    const qn = vNorm(q);
+    const cr = vCross(qn, d);
+    const alpha = Math.atan2(vDot(cr, axis), vDot(qn, d));
+    return { names: [...def.hinge, def.apex], a, b, p0, axis, alpha };
+  });
+
+  const flat = moving.map((m) => rotAxis(m.p0, m.a, m.axis, m.alpha));
+
+  // シーン中心: 展開後の全点のバウンディング中心
+  const all = [T[fixedNames[0]], T[fixedNames[1]], T[fixedNames[2]], ...flat];
+  const mn = [Infinity, Infinity, Infinity], mx = [-Infinity, -Infinity, -Infinity];
+  for (const p of all) for (let i = 0; i < 3; i++) { mn[i] = Math.min(mn[i], p[i]); mx[i] = Math.max(mx[i], p[i]); }
+  const center = vScale(vAdd(mn, mx), 0.5);
+
+  return { T, moving, flat, center };
+}
+
+/* ============================================================
+   水位ソルバー
+   baseArea: 容器底面積, waterVol: 水の体積,
+   wBottom: おもり底面の高さ, wArea: おもり底面積の和, wHeight: おもりの高さ
+   容器の水位 L を  baseArea*L = waterVol + wArea*clamp(L - wBottom, 0, wHeight)
+   の不動点反復で解く
+   ============================================================ */
+function solveWaterLevel(baseArea, waterVol, wBottom, wArea, wHeight) {
+  // 場合分けで厳密に解く(区分線形)
+  const L0 = waterVol / baseArea;                              // 全く浸からない
+  if (L0 <= wBottom) return L0;
+  const Lfull = (waterVol + wArea * wHeight) / baseArea;       // 完全に沈む
+  if (Lfull >= wBottom + wHeight) return Lfull;
+  return (waterVol - wArea * wBottom) / (baseArea - wArea);    // 一部だけ浸かる
+}
+
+if (typeof module !== "undefined") {
+  module.exports = { hingeAlpha, vAdd, vSub, vScale, vDot, vCross, vLen, vNorm, vLerp, rotAxis, splitPolyhedron, computeUnfold, solveWaterLevel };
+}
+
+
+/* ===== src/core/util.js ===== */
+// ==== 共通ユーティリティ(バックエンド非依存) ====
+"use strict";
+
+const clamp01 = (x) => Math.max(0, Math.min(1, x));
+const easeInOut = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+const lerp = (a, b, t) => a + (b - a) * t;
+
+// 3Dビルダー用: [x,y,z] → THREE.Vector3(three-helpers 側で THREE を使う)
+const V3 = (a) => new THREE.Vector3(a[0], a[1], a[2]);
+
+
+/* ===== src/core/palette.js ===== */
+// ==== 配色パレット(3D=hex / 2D=CSS文字列。同じ色を両方で共有) ====
+// 配色ルール: モノトーン基調 / 赤=注目 / 青=水。新しい色を足さない。
+"use strict";
+
+// 3D(Three.js)用の16進
+const COL = {
+  solid: 0xeef1f5, solid2: 0xdfe4ea, cap: 0xf3d9d5,
+  edge: 0x2c3a55, red: 0xd9463e, redSoft: 0xe4867d,
+  water: 0x4e9ed9, glass: 0xd8dee6,
+  gridA: 0xd6dce2, gridB: 0xe8ebef,
+};
+
+// 2D(Canvas)用のCSS文字列。COLと対応。
+const C2D = {
+  ink: "#24354d",       // 基本の線・文字(濃紺)
+  edge: "#2c3a55",      // 図形の輪郭
+  solid: "#eef1f5",     // 面の塗り(薄)
+  solid2: "#dfe4ea",    // 面の塗り(やや濃)/ 区別用
+  red: "#d9463e",       // 注目(点・強調線・答え)
+  redSoft: "#e4867d",   // 注目(淡)
+  redFill: "rgba(217,70,62,0.14)",   // 注目領域の塗り
+  blue: "#356ba8",      // 補助の線・軸ラベル
+  water: "#4e9ed9",     // 水
+  waterFill: "rgba(78,158,217,0.42)",
+  green: "#4a8f6d",     // 2本目の動点など(赤・青と区別)
+  grid: "#e2e8ef",      // 方眼(細)
+  gridBold: "#cdd7e2",  // 方眼(基準線)
+  axis: "#8494a8",      // グラフの軸
+  ghost: "#9aa7b8",     // 補助・軌跡
+  paper: "#fbfcfd",     // 背景
+};
+
+
+/* ===== src/render/three-helpers.js ===== */
+// ==== 3D描画ヘルパー(Three.js依存。3Dビルダーが使う) ====
+"use strict";
+
+
+function polysToGeometry(faces) {
+  const pos = [];
+  for (const f of faces) for (let i = 1; i < f.length - 1; i++) pos.push(...f[0], ...f[i], ...f[i + 1]);
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+  g.computeVertexNormals();
+  return g;
+}
+
+function polysToEdges(faces) {
+  const pos = [];
+  for (const f of faces) for (let i = 0; i < f.length; i++) pos.push(...f[i], ...f[(i + 1) % f.length]);
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+  return g;
+}
+
+function solidMat(color) {
+  return new THREE.MeshStandardMaterial({ color, flatShading: true, side: THREE.DoubleSide, roughness: 0.9, metalness: 0 });
+}
+
+function makeLabel(text, opts = {}) {
+  const { color = "#24354d", fontPx = 46, world = 1.3, weight = "bold" } = opts;
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ transparent: true, depthTest: false }));
+  sp.userData = { color, fontPx, world, weight, text: null };
+  setLabelText(sp, text);
+  return sp;
+}
+
+function setLabelText(sp, text) {
+  const u = sp.userData;
+  if (u.text === text) return;
+  u.text = text;
+  const pad = 14;
+  const cv = document.createElement("canvas");
+  let ctx = cv.getContext("2d");
+  const font = `${u.weight} ${u.fontPx}px "Hiragino Kaku Gothic ProN","Hiragino Sans","Yu Gothic",sans-serif`;
+  ctx.font = font;
+  const w = Math.ceil(ctx.measureText(text).width) + pad * 2;
+  const h = u.fontPx + pad * 2;
+  cv.width = w; cv.height = h;
+  ctx = cv.getContext("2d");
+  ctx.font = font;
+  ctx.fillStyle = u.color;
+  ctx.textBaseline = "middle";
+  ctx.fillText(text, pad, h / 2 + 2);
+  if (sp.material.map) sp.material.map.dispose();
+  const tex = new THREE.CanvasTexture(cv);
+  tex.minFilter = THREE.LinearFilter;
+  sp.material.map = tex;
+  sp.material.needsUpdate = true;
+  sp.scale.set((u.world * w) / h, u.world, 1);
+}
+
+/* 寸法線: 辺(a-b)から dir 方向に dist だけ離した位置に
+   引き出し線2本 + 平行線 + ラベル を描く */
+function makeDim(scene, a, b, opts) {
+  const dir = vNorm(opts.dir);
+  const off = vScale(dir, opts.dist ?? 1.0);
+  const a2 = vAdd(a, off), b2 = vAdd(b, off);
+  const mat = new THREE.LineBasicMaterial({ color: opts.color ?? COL.edge, transparent: true, opacity: 1 });
+  const pts = [V3(a), V3(a2), V3(b), V3(b2), V3(a2), V3(b2)];
+  const lines = new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pts), mat);
+  const label = makeLabel(opts.text, { color: opts.labelColor ?? "#24354d", world: opts.world ?? 0.95 });
+  const mid = vScale(vAdd(a2, b2), 0.5);
+  const lp = vAdd(mid, vScale(dir, 0.6));
+  label.position.set(lp[0], lp[1], lp[2]);
+  scene.add(lines, label);
+  return {
+    setOpacity(o) {
+      mat.opacity = o; lines.visible = o > 0.01;
+      label.material.opacity = o; label.visible = o > 0.01;
+    },
+  };
+}
+
+function addLights(scene) {
+  scene.add(new THREE.AmbientLight(0xffffff, 0.66));
+  const d1 = new THREE.DirectionalLight(0xffffff, 0.62);
+  d1.position.set(6, 12, 8);
+  scene.add(d1);
+  const d2 = new THREE.DirectionalLight(0xffffff, 0.22);
+  d2.position.set(-8, 5, -9);
+  scene.add(d2);
+}
+
+function makeGrid(scene, size, div, cx, cz) {
+  const grid = new THREE.GridHelper(size, div, COL.gridA, COL.gridB);
+  grid.position.set(cx, -0.02, cz);
+  scene.add(grid);
+}
+
+function disposeScene(scene) {
+  scene.traverse((o) => {
+    if (o.geometry) o.geometry.dispose();
+    if (o.material) {
+      const ms = Array.isArray(o.material) ? o.material : [o.material];
+      ms.forEach((m) => { if (m.map) m.map.dispose(); m.dispose(); });
+    }
+  });
+}
+
+const cubeFaceIdx = [
+  [0,3,2,1],[4,5,6,7],[0,4,7,3],[1,2,6,5],[0,1,5,4],[3,7,6,2],
+];
+function boxVerts(x0, y0, z0, x1, y1, z1) {
+  return [
+    [x0,y0,z0],[x1,y0,z0],[x1,y1,z0],[x0,y1,z0],
+    [x0,y0,z1],[x1,y0,z1],[x1,y1,z1],[x0,y1,z1],
+  ];
+}
+
+// ------------------------------------------------------------
+// ビルダー①: 立方体の切断 (正六角形)
+// ------------------------------------------------------------
+
+// ==== 追加ヘルパー(面倒し・素材) ====
+function dynQuad(scene, mat) {
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(new Float32Array(12), 3));
+  geo.setIndex([0,1,2,0,2,3]);
+  const mesh = new THREE.Mesh(geo, mat);
+  const lineGeo = new THREE.BufferGeometry();
+  lineGeo.setAttribute("position", new THREE.Float32BufferAttribute(new Float32Array(15), 3));
+  const line = new THREE.Line(lineGeo, new THREE.LineBasicMaterial({ color: COL.edge }));
+  scene.add(mesh, line);
+  return {
+    set(p0, p1, p2, p3) {
+      const pa = mesh.geometry.attributes.position;
+      pa.setXYZ(0, ...p0); pa.setXYZ(1, ...p1); pa.setXYZ(2, ...p2); pa.setXYZ(3, ...p3);
+      pa.needsUpdate = true;
+      mesh.geometry.computeVertexNormals();
+      const la = line.geometry.attributes.position;
+      la.setXYZ(0, ...p0); la.setXYZ(1, ...p1); la.setXYZ(2, ...p2); la.setXYZ(3, ...p3); la.setXYZ(4, ...p0);
+      la.needsUpdate = true;
+    },
+  };
+}
+
+function collectMats(group) {
+  const mats = [];
+  group.traverse((o) => {
+    if (o.material) {
+      const ms = Array.isArray(o.material) ? o.material : [o.material];
+      ms.forEach((m) => { m.transparent = true; mats.push(m); });
+    }
+  });
+  return mats;
+}
+
+function sectorPoly(r, a0, a1, n, y) {
+  const pts = [[0, y, 0]];
+  for (let i = 0; i <= n; i++) {
+    const a = a0 + (i / n) * (a1 - a0);
+    pts.push([r * Math.cos(a), y, r * Math.sin(a)]);
+  }
+  return pts;
+}
+
+function redOverlayMat(op = 0) {
+  return new THREE.MeshBasicMaterial({ color: 0xe2574c, transparent: true, opacity: op, side: THREE.DoubleSide, depthWrite: false });
+}
+
+// ------------------------------------------------------------
+// ビルダー: ひも(円すい 90°/60°)
+// ------------------------------------------------------------
+
+
+/* ===== src/render/canvas2d.js ===== */
+// ==== 2D描画レイヤー(Canvas)。平面図形・速さのダイヤグラム・グラフ用 ====
+"use strict";
+
+/* 描画ヘルパー G:
+   ワールド座標(問題の単位, 例: cm や 時間・距離)で図形を置くと、
+   画面ピクセルへ変換して描く。3Dの「camPos/camTarget」に相当するのが view。
+
+   view = { ox, oy, scale, yUp }
+     ox, oy : ワールド原点(0,0)の画面ピクセル位置
+     scale  : ワールド1単位 = 何ピクセル
+     yUp    : true でy軸上向き(グラフ用)、false で下向き(画面と同じ)
+   view はシナリオの状態(st.view)からも動かせる(ズーム・パン)。
+
+   すべての座標はワールド単位。色は C2D(CSS文字列)を使う。 */
+function makeG(ctx, screen, view) {
+  const dpr = view.dpr || 1;
+  const ox = view.ox, oy = view.oy, s = view.scale, yUp = !!view.yUp;
+  const SX = (x) => ox + x * s;
+  const SY = (y) => (yUp ? oy - y * s : oy + y * s);
+
+  function stroke(color, w, dash, alpha) {
+    ctx.strokeStyle = color || C2D.ink;
+    ctx.lineWidth = (w || 1.5);
+    ctx.globalAlpha = alpha == null ? 1 : alpha;
+    ctx.setLineDash(dash || []);
+  }
+  function fillStyle(color, alpha) {
+    ctx.fillStyle = color;
+    ctx.globalAlpha = alpha == null ? 1 : alpha;
+  }
+
+  const G = {
+    view,
+    sx: SX, sy: SY,
+    px: (x) => x * s, // ワールド長さ→ピクセル長さ
+
+    clear() {
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.globalAlpha = 1;
+      ctx.clearRect(0, 0, screen.w, screen.h);
+    },
+
+    // 方眼(ワールド範囲 [x0,x1]×[y0,y1] を step 刻み)
+    grid(x0, y0, x1, y1, step, opts = {}) {
+      const boldEvery = opts.boldEvery || 0;
+      let n = 0;
+      for (let x = x0; x <= x1 + 1e-9; x += step) {
+        const bold = boldEvery && Math.round(x / step) % boldEvery === 0;
+        stroke(bold ? C2D.gridBold : C2D.grid, bold ? 1.2 : 1, [], opts.alpha);
+        ctx.beginPath(); ctx.moveTo(SX(x), SY(y0)); ctx.lineTo(SX(x), SY(y1)); ctx.stroke();
+      }
+      for (let y = y0; y <= y1 + 1e-9; y += step) {
+        const bold = boldEvery && Math.round(y / step) % boldEvery === 0;
+        stroke(bold ? C2D.gridBold : C2D.grid, bold ? 1.2 : 1, [], opts.alpha);
+        ctx.beginPath(); ctx.moveTo(SX(x0), SY(y)); ctx.lineTo(SX(x1), SY(y)); ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+    },
+
+    line(x1, y1, x2, y2, opts = {}) {
+      stroke(opts.color, opts.w, opts.dash, opts.alpha);
+      ctx.beginPath(); ctx.moveTo(SX(x1), SY(y1)); ctx.lineTo(SX(x2), SY(y2)); ctx.stroke();
+      ctx.globalAlpha = 1;
+    },
+
+    // 折れ線 / 経路。pts = [[x,y],...]
+    path(pts, opts = {}) {
+      if (pts.length < 2) return;
+      stroke(opts.color, opts.w, opts.dash, opts.alpha);
+      ctx.beginPath(); ctx.moveTo(SX(pts[0][0]), SY(pts[0][1]));
+      for (let i = 1; i < pts.length; i++) ctx.lineTo(SX(pts[i][0]), SY(pts[i][1]));
+      if (opts.close) ctx.closePath();
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    },
+
+    // 多角形。pts=[[x,y],...] fill/stroke両対応
+    poly(pts, opts = {}) {
+      if (pts.length < 2) return;
+      ctx.beginPath(); ctx.moveTo(SX(pts[0][0]), SY(pts[0][1]));
+      for (let i = 1; i < pts.length; i++) ctx.lineTo(SX(pts[i][0]), SY(pts[i][1]));
+      ctx.closePath();
+      if (opts.fill) { fillStyle(opts.fill, opts.fillAlpha); ctx.fill(); }
+      if (opts.color !== null) { stroke(opts.color, opts.w, opts.dash, opts.alpha); ctx.stroke(); }
+      ctx.globalAlpha = 1;
+    },
+
+    circle(x, y, r, opts = {}) {
+      ctx.beginPath(); ctx.arc(SX(x), SY(y), r * s, 0, Math.PI * 2);
+      if (opts.fill) { fillStyle(opts.fill, opts.fillAlpha); ctx.fill(); }
+      if (opts.color !== null) { stroke(opts.color, opts.w, opts.dash, opts.alpha); ctx.stroke(); }
+      ctx.globalAlpha = 1;
+    },
+
+    // 点(半径ピクセル固定の丸)。動点の表示に。
+    dot(x, y, opts = {}) {
+      const rp = opts.rp || 5;
+      ctx.beginPath(); ctx.arc(SX(x), SY(y), rp, 0, Math.PI * 2);
+      fillStyle(opts.color || C2D.red, opts.alpha);
+      ctx.fill();
+      if (opts.ring) { stroke("#fff", 2, [], opts.alpha); ctx.stroke(); }
+      ctx.globalAlpha = 1;
+    },
+
+    // 円弧(角度は度、反時計まわり基準)。中心角・回転の表示に。
+    arc(x, y, r, a0deg, a1deg, opts = {}) {
+      const a0 = (-a0deg) * Math.PI / 180, a1 = (-a1deg) * Math.PI / 180;
+      stroke(opts.color, opts.w, opts.dash, opts.alpha);
+      ctx.beginPath(); ctx.arc(SX(x), SY(y), r * s, a0, a1, true); ctx.stroke();
+      ctx.globalAlpha = 1;
+    },
+
+    // 矢印(始点→終点)
+    arrow(x1, y1, x2, y2, opts = {}) {
+      stroke(opts.color, opts.w, opts.dash, opts.alpha);
+      const X1 = SX(x1), Y1 = SY(y1), X2 = SX(x2), Y2 = SY(y2);
+      ctx.beginPath(); ctx.moveTo(X1, Y1); ctx.lineTo(X2, Y2); ctx.stroke();
+      const ang = Math.atan2(Y2 - Y1, X2 - X1), hl = opts.head || 10;
+      ctx.beginPath(); ctx.moveTo(X2, Y2);
+      ctx.lineTo(X2 - hl * Math.cos(ang - 0.4), Y2 - hl * Math.sin(ang - 0.4));
+      ctx.lineTo(X2 - hl * Math.cos(ang + 0.4), Y2 - hl * Math.sin(ang + 0.4));
+      ctx.closePath(); fillStyle(opts.color || C2D.ink, opts.alpha); ctx.fill();
+      ctx.globalAlpha = 1;
+    },
+
+    // 文字(ワールド位置に、ピクセルオフセット付き)
+    text(x, y, str, opts = {}) {
+      const size = opts.size || 15;
+      ctx.font = `${opts.weight || "bold"} ${size}px "Hiragino Kaku Gothic ProN","Hiragino Sans","Yu Gothic",sans-serif`;
+      ctx.textAlign = opts.align || "center";
+      ctx.textBaseline = opts.baseline || "middle";
+      fillStyle(opts.color || C2D.ink, opts.alpha);
+      ctx.fillText(str, SX(x) + (opts.dx || 0), SY(y) + (opts.dy || 0));
+      ctx.globalAlpha = 1;
+    },
+
+    // ラベル付きバッジ(動点の名前など。背景付きで見やすく)
+    badge(x, y, str, opts = {}) {
+      const size = opts.size || 13, padx = 6, pady = 3;
+      ctx.font = `bold ${size}px "Hiragino Kaku Gothic ProN",sans-serif`;
+      const w = ctx.measureText(str).width;
+      const X = SX(x) + (opts.dx || 0), Y = SY(y) + (opts.dy || 0);
+      fillStyle(opts.bg || C2D.red, opts.alpha);
+      const bw = w + padx * 2, bh = size + pady * 2;
+      ctx.beginPath();
+      const rr = 5, bx = X - bw / 2, by = Y - bh / 2;
+      ctx.moveTo(bx + rr, by);
+      ctx.arcTo(bx + bw, by, bx + bw, by + bh, rr);
+      ctx.arcTo(bx + bw, by + bh, bx, by + bh, rr);
+      ctx.arcTo(bx, by + bh, bx, by, rr);
+      ctx.arcTo(bx, by, bx + bw, by, rr);
+      ctx.fill();
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      fillStyle(opts.fg || "#fff", opts.alpha);
+      ctx.fillText(str, X, Y + 0.5);
+      ctx.globalAlpha = 1;
+    },
+  };
+  return G;
+}
+
+/* 2Dバックエンド: <canvas> を用意し、毎フレーム clear→draw する */
+function makeCanvas2DBackend(stageEl) {
+  const canvas = document.createElement("canvas");
+  canvas.style.display = "block";
+  canvas.style.width = "100%";
+  canvas.style.height = "100%";
+  stageEl.appendChild(canvas);
+  const ctx = canvas.getContext("2d");
+  const screen = { w: 0, h: 0 };
+  let dpr = 1;
+
+  function resize() {
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    screen.w = stageEl.clientWidth;
+    screen.h = stageEl.clientHeight;
+    canvas.width = screen.w * dpr;
+    canvas.height = screen.h * dpr;
+  }
+
+  return {
+    kind: "canvas2d",
+    canvas,
+    show(v) { canvas.style.display = v ? "block" : "none"; },
+    resize,
+    load(scn, builders) {
+      const handle = builders[scn.type](scn.params);
+      return { handle };
+    },
+    frame(bctx, st) {
+      // 既定ビュー: シナリオの base.view を状態として補間したもの(st.view)を使う。
+      // なければ画面中央・スケール1。
+      const v = st.view || { ox: screen.w / 2, oy: screen.h / 2, scale: 24, yUp: false };
+      const view = {
+        ox: v.ox != null ? v.ox : screen.w / 2,
+        oy: v.oy != null ? v.oy : screen.h / 2,
+        scale: v.scale != null ? v.scale : 24,
+        yUp: !!v.yUp, dpr,
+      };
+      const g = makeG(ctx, screen, view);
+      g.clear();
+      bctx.handle.draw(g, st, screen);
+    },
+    dispose() {},
+  };
+}
+
+
+/* ===== src/render/backend-three.js ===== */
+// ==== 3Dバックエンド(Three.js)。2Dと同じインターフェースに包む ====
+"use strict";
+
+function makeThreeBackend(stageEl) {
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setClearColor(0xfbfcfd);
+  renderer.domElement.style.display = "block";
+  stageEl.appendChild(renderer.domElement);
+  const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 300);
+
+  function resize() {
+    const w = stageEl.clientWidth, h = stageEl.clientHeight;
+    renderer.setSize(w, h);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+  }
+
+  return {
+    kind: "three",
+    show(v) { renderer.domElement.style.display = v ? "block" : "none"; },
+    resize,
+    load(scn, builders) {
+      const scene = new THREE.Scene();
+      addLights(scene);
+      const handle = builders[scn.type](scene, scn.params);
+      return { scene, handle };
+    },
+    frame(bctx, st) {
+      camera.position.set(...st.camPos);
+      camera.lookAt(...st.camTarget);
+      bctx.handle.update(st);
+      renderer.render(bctx.scene, camera);
+    },
+    dispose(bctx) {
+      if (bctx && bctx.scene) disposeScene(bctx.scene);
+    },
+  };
+}
+
+
+/* ===== src/units/cases/builders/treeDiagram.js ===== */
+// ==== ビルダー(2D): 樹形図(カードのならべ方) ====
+// n枚のカードを1列にならべる順列を、枝が1段ずつ育つ樹形図で数える。
+// 状態 st.grow(0..n)で「何段目まで枝がのびたか」、st.countN で葉を数える。
+//
+// params: { items: ["1","2","3"] }  カードの文字
+function buildTreeDiagram(params) {
+  const items = params.items;
+  const n = items.length;
+
+  // 順列を列挙(枝の順=辞書順)。各ノードは「これまでに選んだ列」
+  const perms = [];
+  (function rec(prefix, rest) {
+    if (rest.length === 0) { perms.push(prefix); return; }
+    for (let i = 0; i < rest.length; i++) {
+      rec(prefix.concat(rest[i]), rest.slice(0, i).concat(rest.slice(i + 1)));
+    }
+  })([], items);
+  const leavesN = perms.length;
+
+  // ノード位置: 深さℓ(1..n) → x=(ℓ-1)*colW。yは「自分の下の葉たち」の平均。
+  const colW = 2.4, rowH = 1.0;
+  const leafY = (j) => (leavesN - 1 - j) * rowH;
+  function nodeInfo(depth) {
+    // 深さdepthの全ノード: prefix(長さdepth)ごとに、対応する葉の範囲
+    const map = new Map();
+    perms.forEach((p, j) => {
+      const key = p.slice(0, depth).join(",");
+      if (!map.has(key)) map.set(key, { label: p[depth - 1], ys: [] });
+      map.get(key).ys.push(leafY(j));
+    });
+    return [...map.values()].map((v) => ({
+      label: v.label,
+      x: (depth - 1) * colW,
+      y: v.ys.reduce((a, b) => a + b, 0) / v.ys.length,
+      childYs: v.ys,
+    }));
+  }
+  const levels = [];
+  for (let d = 1; d <= n; d++) levels.push(nodeInfo(d));
+
+  return {
+    draw(g, st, screen) {
+      const grow = st.grow;
+      const digits = ["百の位", "十の位", "一の位", "千の位"]; // n<=3想定(4枚なら要調整)
+      const topY = leavesN * rowH + 0.6;
+
+      // 列見出し
+      for (let d = 1; d <= n; d++) {
+        const f = clamp01(grow - (d - 1));
+        if (f < 0.01) continue;
+        g.text((d - 1) * colW, topY, digits[d - 1], { size: 12, color: C2D.axis, alpha: f });
+      }
+
+      // 枝と数字(深さdの枝は grow が d-1..d の間にのびる)
+      for (let d = 1; d <= n; d++) {
+        const f = clamp01(grow - (d - 1));
+        if (f < 0.01) continue;
+        const parents = d >= 2 ? levels[d - 2] : null;
+        levels[d - 1].forEach((node) => {
+          if (d >= 2) {
+            // 親ノードから自分へ枝をのばす(fで途中まで)
+            const pa = parents.find((p) => p.childYs.includes(node.childYs[0]));
+            const x0 = pa.x + 0.42, y0 = pa.y;
+            const x1 = node.x - 0.42, y1 = node.y;
+            g.line(x0, y0, x0 + (x1 - x0) * f, y0 + (y1 - y0) * f, { color: C2D.edge, w: 1.5, alpha: 0.9 });
+          }
+          if (f > 0.6) {
+            g.text(node.x, node.y, node.label, { size: 17, color: C2D.ink, alpha: (f - 0.6) / 0.4 });
+          }
+        });
+      }
+
+      // 葉のよこに完成した数と番号バッジ
+      perms.forEach((p, j) => {
+        const showNum = clamp01(grow - (n - 1));
+        if (showNum > 0.6) {
+          g.text((n - 1) * colW + 1.5, leafY(j), `→ ${p.join("")}`, {
+            size: 14, color: C2D.ink, alpha: (showNum - 0.6) / 0.4, align: "left",
+          });
+        }
+        const cf = clamp01((st.countN || 0) - j);
+        if (cf > 0.5) {
+          g.badge((n - 1) * colW + 3.4, leafY(j), `${j + 1}`, { bg: C2D.red, size: 12 });
+        }
+      });
+
+      // 合計
+      if ((st.countN || 0) >= leavesN - 0.01 && st.showAns > 0.01) {
+        g.text((n - 1) * colW + 1.4, -1.2, `全部で ${leavesN} 通り`, {
+          size: 18, color: C2D.red, alpha: st.showAns,
+        });
+      }
+    },
+  };
+}
+
+
+/* ===== src/units/cases/scenarios.js ===== */
+// ==== 単元: 場合の数(2D / Canvas) ====
+// registry で unit:"cases", render:"canvas2d" を一括付与される。
+function makeCasesScenarios() {
+  return [
+    {
+      id: "treeDiagram", name: "① 樹形図(カードのならべ方)", type: "treeDiagram",
+      source: "場合の数/順列。例: 1,2,3のカードで3けたの数",
+      params: { items: ["1", "2", "3"] },
+      base: {
+        view: { ox: 130, oy: 262, scale: 38, yUp: true },
+        grow: 0, countN: 0, showAns: 0,
+      },
+      steps: [
+        { dur: 1.6, caption: "1、2、3のカードが1枚ずつあります。3枚をならべて3けたの数をつくると、全部で何通りできるでしょう?" },
+        { dur: 2.6, caption: "「樹形図」で数えもれなく調べます。まず百の位。使えるカードは1、2、3の3通りです。", formula: "百の位: 3通り", state: { grow: 1 } },
+        { dur: 3.0, caption: "次に十の位。百の位で1枚使ったから、残りは2枚。どの枝からも2本ずつ枝分かれします。", formula: "十の位: 残り2枚 → 2通りずつ", state: { grow: 2 } },
+        { dur: 3.0, caption: "最後に一の位。残ったカードは1枚だけなので、枝は1本ずつ。これで3けたの数が全部ならびました。", formula: "一の位: 残り1枚 → 1通りずつ", state: { grow: 3 } },
+        { dur: 3.4, caption: "葉の数をかぞえると…全部で6通り! 枝分かれの数をかけ算しても同じです。樹形図の「×」のしくみが見えます。", formula: "3 × 2 × 1 = 6通り", state: { countN: 6, showAns: 1 } },
+      ],
+    },
+  ];
+}
+
+
+/* ===== src/units/geometry-plane/builders/movePoint.js ===== */
+// ==== ビルダー(2D): 点の移動と面積 ====
+// 長方形ABCDの周上を点Pが A→B→C→D と動く。三角形ABPの面積が
+// どう変わるかを、図形の塗りとグラフで同時に見せる。
+//
+// params: { w, h }  長方形の横w・縦h。頂点 A(0,0) B(w,0) C(w,h) D(0,h)
+//   Pは A→B→C→D の順に周を進む(辺AD上は面積0付近なので今回はA→B→C→Dで一周手前まで)
+function buildMovePoint(params) {
+  const { w, h } = params;
+  const A = [0, 0], B = [w, 0], C = [w, h], D = [0, h];
+  // 周の道のり: A→B(長さw) →B→C(長さh) →C→D(長さw)。合計 2w+h
+  const total = w + h + w;
+  function P(dparam) {           // dparam: 0..total
+    if (dparam <= w) return [dparam, 0];                     // AB
+    if (dparam <= w + h) return [w, dparam - w];             // BC
+    return [w - (dparam - w - h), h];                        // CD
+  }
+  // 三角形ABPの面積 = AB(=w) × (Pの底辺ABからの高さ) ÷ 2 = w × Py ÷ 2
+  function area(dparam) { return w * P(dparam)[1] / 2; }
+  const areaMax = w * h / 2;
+
+  return {
+    draw(g, st, screen) {
+      const d = st.d * total;          // Pの現在位置(道のり)
+      const p = P(d);
+
+      // --- 左: 長方形と三角形 ---
+      // 長方形
+      g.poly([A, B, C, D], { color: C2D.edge, w: 2.5, fill: C2D.solid, fillAlpha: 1 });
+      // 三角形ABP(塗り)
+      if (st.showTri > 0.01) {
+        g.poly([A, B, p], { color: C2D.red, w: 2, fill: C2D.redFill, fillAlpha: 1, alpha: st.showTri });
+        // 高さの点線
+        g.line(p[0], p[1], p[0], 0, { color: C2D.ghost, dash: [4, 4], w: 1, alpha: st.showTri });
+      }
+      // 頂点ラベル
+      g.text(A[0], A[1], "A", { dx: -12, dy: 12, color: C2D.ink });
+      g.text(B[0], B[1], "B", { dx: 12, dy: 12, color: C2D.ink });
+      g.text(C[0], C[1], "C", { dx: 12, dy: -12, color: C2D.ink });
+      g.text(D[0], D[1], "D", { dx: -12, dy: -12, color: C2D.ink });
+      // 動点P
+      g.dot(p[0], p[1], { color: C2D.red, rp: 7, ring: true });
+      g.badge(p[0], p[1], "P", { dx: 14, dy: -12, bg: C2D.red });
+
+      // --- 右: 面積グラフ(横=道のり / 縦=面積) ---
+      if (st.showGraph > 0.01) {
+        const gx0 = st.gx0, gy0 = st.gy0, sx = st.gsx, sy = st.gsy;
+        // 軸
+        g.arrow(gx0, gy0, gx0 + total * sx + 0.8, gy0, { color: C2D.axis, w: 1.5, head: 9 });
+        g.arrow(gx0, gy0, gx0, gy0 + areaMax * sy + 1.2, { color: C2D.axis, w: 1.5, head: 9, });
+        g.text(gx0 + total * sx + 0.8, gy0, "動いた長さ", { dx: 4, dy: 12, align: "left", color: C2D.axis, size: 11 });
+        g.text(gx0, gy0 + areaMax * sy + 1.2, "面積", { dy: -10, color: C2D.axis, size: 11 });
+        // 区切り(B,C の位置)
+        [w, w + h].forEach((dd) => {
+          g.line(gx0 + dd * sx, gy0, gx0 + dd * sx, gy0 + areaMax * sy, { color: C2D.grid, w: 1 });
+        });
+        g.text(gx0 + w * sx, gy0, "B", { dy: 14, size: 11, color: C2D.axis });
+        g.text(gx0 + (w + h) * sx, gy0, "C", { dy: 14, size: 11, color: C2D.axis });
+        // 面積の折れ線(0..d)
+        const pts = [];
+        const NS = 60;
+        for (let i = 0; i <= NS; i++) {
+          const dd = (i / NS) * d;
+          pts.push([gx0 + dd * sx, gy0 + area(dd) * sy]);
+        }
+        g.path(pts, { color: C2D.red, w: 2.5, alpha: st.showGraph });
+        // 現在の面積の点
+        g.dot(gx0 + d * sx, gy0 + area(d) * sy, { color: C2D.red, rp: 5, alpha: st.showGraph });
+        // 面積の値
+        g.text(gx0 + d * sx, gy0 + area(d) * sy, `${area(d).toFixed(0)}cm²`, { dx: 6, dy: -12, align: "left", size: 12, color: C2D.red, alpha: st.showGraph });
+      }
+    },
+  };
+}
+
+
+/* ===== src/units/geometry-plane/builders/rolling.js ===== */
+// ==== ビルダー(2D): 図形の転がり(正方形) ====
+// 1辺aの正方形が直線上をすべらずに転がる。90度ごとに回転中心が
+// 右どなりの頂点へ移り、頂点Aは半径のちがう1/4円弧をつないだ軌跡をえがく。
+//
+// params: { a }  正方形の1辺(cm)
+function buildRolling(params) {
+  const a = params.a;
+  const SQ0 = [[0, 0], [a, 0], [a, a], [0, a]]; // 初期の正方形(Aは[0,0])
+
+  // 点pを中心cのまわりに deg 度回転(反時計回りが正)
+  function rotAround(p, c, deg) {
+    const r = deg * Math.PI / 180;
+    const dx = p[0] - c[0], dy = p[1] - c[1];
+    return [c[0] + dx * Math.cos(r) - dy * Math.sin(r),
+            c[1] + dx * Math.sin(r) + dy * Math.cos(r)];
+  }
+  // 合計回転角 theta(0..270度)での点の位置。90度ごとに中心が右へ移る。
+  function transform(p, theta) {
+    let k = Math.min(2, Math.floor(theta / 90)); // 何回転り終えたか
+    const phi = theta - 90 * k;                  // いまの回転の進み
+    let q = p;
+    for (let j = 0; j < k; j++) q = rotAround(q, [(j + 1) * a, 0], -90);
+    return rotAround(q, [(k + 1) * a, 0], -phi);
+  }
+
+  return {
+    draw(g, st, screen) {
+      const theta = st.rot;
+      const k = Math.min(2, Math.floor(theta / 90));
+      const pivot = [(k + 1) * a, 0];
+
+      // --- 地面 ---
+      g.line(-1, 0, 4 * a + 1.5, 0, { color: C2D.edge, w: 2.5 });
+
+      // --- Aの軌跡(0..theta をサンプリング) ---
+      const NS = 80;
+      const pathPts = [];
+      for (let i = 0; i <= NS; i++) pathPts.push(transform(SQ0[0], (i / NS) * theta));
+
+      // 軌跡と直線で囲まれた面積
+      if (st.showArea > 0.01 && theta > 1) {
+        const region = pathPts.slice();
+        region.push([pathPts[pathPts.length - 1][0], 0], [pathPts[0][0], 0]);
+        g.poly(region, { color: null, fill: C2D.redFill, fillAlpha: st.showArea });
+      }
+      if (theta > 0.5) g.path(pathPts, { color: C2D.red, w: 2.5 });
+
+      // --- 正方形(いまの位置) ---
+      const sq = SQ0.map((p) => transform(p, theta));
+      g.poly(sq, { color: C2D.edge, w: 2.5, fill: C2D.solid, fillAlpha: 0.9 });
+
+      // --- 回転中心と半径 ---
+      if (st.showRadius > 0.01 && theta > 0.5 && theta < 269.5) {
+        const al = st.showRadius;
+        g.dot(pivot[0], pivot[1], { color: C2D.ink, rp: 5, alpha: al });
+        g.line(pivot[0], pivot[1], sq[0][0], sq[0][1], { color: C2D.red, w: 1.5, dash: [5, 4], alpha: al });
+      }
+
+      // --- 頂点A ---
+      g.dot(sq[0][0], sq[0][1], { color: C2D.red, rp: 7, ring: true });
+      g.badge(sq[0][0], sq[0][1], "A", { dy: -20, bg: C2D.red });
+    },
+  };
+}
+
+
+/* ===== src/units/geometry-plane/scenarios.js ===== */
+// ==== 単元: 平面図形(2D / Canvas) ====
+// registry で unit:"plane", render:"canvas2d" を一括付与される。
+function makePlaneScenarios() {
+  return [
+    {
+      id: "movePoint", name: "① 点の移動と面積", type: "movePoint",
+      source: "平面図形/点の移動。例: 長方形6cm×4cm、Pが周を移動",
+      params: { w: 6, h: 4 },
+      base: {
+        view: { ox: 45, oy: 200, scale: 28, yUp: true },
+        d: 0, showTri: 1, showGraph: 1,
+        gx0: 8.5, gy0: 0, gsx: 0.5, gsy: 0.42,
+      },
+      steps: [
+        { dur: 1.4, caption: "長方形ABCD(横6cm・縦4cm)の周りを、点PがAを出発してB→C→Dの順に動きます。三角形ABPの面積は、どう変わっていく?", state: { d: 0, showTri: 1, showGraph: 0 } },
+        { dur: 3.0, caption: "PがAからBへ動く間。三角形ABPはぺちゃんこ(高さ0)のまま。底辺ABの上をPがすべっても、面積は0のままです。", formula: "AB間: 面積 = 0", state: { d: 6 / 16, showGraph: 1 } },
+        { dur: 3.4, caption: "PがBからCへ上がる間。高さがぐんぐん増えるので、面積はまっすぐ増えていきます。Cに着くと最大。", formula: "BC間: 面積 = 6 × 高さ ÷ 2 (増えていく)  /  最大 = 6×4÷2 = 12cm²", state: { d: (6 + 4) / 16 } },
+        { dur: 3.4, caption: "PがCからDへ動く間。高さは4cmのまま変わらないので、面積は12cm²で一定。グラフは「0 → 直線で増加 → 水平」の形になります。", formula: "CD間: 面積 = 12cm² (一定)", state: { d: 1 } },
+      ],
+    },
+    {
+      id: "rolling", name: "② 正方形の転がり", type: "rolling",
+      source: "平面図形/転がり。例: 1辺4cmの正方形が直線上を1回転",
+      params: { a: 4 },
+      base: {
+        view: { ox: 45, oy: 230, scale: 27, yUp: true },
+        rot: 0, showRadius: 0, showArea: 0,
+      },
+      steps: [
+        { dur: 1.6, caption: "1辺4cmの正方形が、直線の上をすべらずに転がって1回転します。頂点Aはどんな線をえがくでしょう?" },
+        { dur: 3.2, caption: "1回目。回転の中心は右下の頂点です。Aは中心から4cm(1辺の長さ)はなれているので、半径4cmの1/4円をえがきます。", formula: "弧① : 半径4cmの1/4円", state: { rot: 90, showRadius: 1 } },
+        { dur: 3.4, caption: "2回目。こんどはAが対角線のはんたい側! 半径は対角線の長さになるので、いちばん大きな1/4円をえがきます。", formula: "弧② : 半径=対角線の1/4円 (半径×半径 = 4×4+4×4 = 32)", state: { rot: 180 } },
+        { dur: 3.2, caption: "3回目。半径はまた4cmにもどって、Aは地面に着地します。90度ごとに「回転の中心」と「半径」が変わるのがポイント。", formula: "弧③ : 半径4cmの1/4円", state: { rot: 270 } },
+        { dur: 3.4, caption: "軌跡と直線で囲まれた面積は、1/4円が3つと、三角形2つ(合わせて正方形1つ分)に分けて計算できます。", formula: "面積 = 3.14×16×1/4×2 + 3.14×32×1/4 + 16 = 66.24cm²", state: { showArea: 1, showRadius: 0 } },
+      ],
+    },
+  ];
+}
+
+
+/* ===== src/units/geometry-solid/builders/cone.js ===== */
+// ==== ビルダー: cone ====
+function buildCone(scene, params) {
+  const { r, l } = params;
+  const NU = 64, NV = 8;
+  const Theta = 2 * Math.PI * r / l;
+
+  makeGrid(scene, 34, 17, 4, 0);
+
+  // 側面 (パラメトリックメッシュ: 円すい→扇形へ連続変形)
+  const nVert = (NU + 1) * (NV + 1);
+  const posArr = new Float32Array(nVert * 3);
+  const idx = [];
+  for (let iu = 0; iu < NU; iu++) for (let iv = 0; iv < NV; iv++) {
+    const a = iu * (NV + 1) + iv, b = a + (NV + 1);
+    idx.push(a, b, a + 1, b, b + 1, a + 1);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.BufferAttribute(posArr, 3));
+  geo.setIndex(idx);
+  const lateral = new THREE.Mesh(geo, solidMat(COL.solid));
+  scene.add(lateral);
+
+  // 切り込み線(赤・2本) と 弧(ふち)
+  const seams = [0, NU].map(() => {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.Float32BufferAttribute(new Float32Array((NV + 1) * 3), 3));
+    const line = new THREE.Line(g, new THREE.LineBasicMaterial({ color: COL.red }));
+    scene.add(line);
+    return line;
+  });
+  const rimGeo = new THREE.BufferGeometry();
+  rimGeo.setAttribute("position", new THREE.Float32BufferAttribute(new Float32Array((NU + 1) * 3), 3));
+  const rimMat = new THREE.LineBasicMaterial({ color: COL.edge });
+  scene.add(new THREE.Line(rimGeo, rimMat));
+  const rim = { geo: rimGeo };
+
+  // 円板+輪郭を作る小ヘルパー
+  function makeDisk(cx, cz) {
+    const disk = new THREE.Mesh(
+      new THREE.CircleGeometry(r, 48),
+      new THREE.MeshBasicMaterial({ color: 0xcfd8e0, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false })
+    );
+    disk.rotation.x = -Math.PI / 2;
+    disk.position.set(cx, 0.012, cz);
+    scene.add(disk);
+    const pts = [];
+    for (let i = 0; i <= 60; i++) {
+      const a = (i / 60) * Math.PI * 2;
+      pts.push(new THREE.Vector3(cx + r * Math.cos(a), 0.03, cz + r * Math.sin(a)));
+    }
+    const ringMat = new THREE.LineBasicMaterial({ color: COL.edge, transparent: true, opacity: 0 });
+    scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), ringMat));
+    return { disk, ringMat };
+  }
+  // 円すいの底面(中央) / 展開図の底面(弧に接する位置: 中心 = (l+r, 0, 0))
+  const baseC = makeDisk(0, 0);
+  const baseN = makeDisk(l + r, 0);
+  const touchDot = new THREE.Mesh(
+    new THREE.SphereGeometry(0.18, 16, 12),
+    new THREE.MeshBasicMaterial({ color: COL.red, transparent: true, opacity: 0 })
+  );
+  touchDot.position.set(l, 0.1, 0);
+  scene.add(touchDot);
+
+  // 中心角の弧 + ラベル
+  const arcPts = [];
+  for (let i = 0; i <= 40; i++) {
+    const a = -Theta / 2 + (i / 40) * Theta;
+    arcPts.push(new THREE.Vector3(2.6 * Math.cos(a), 0.05, 2.6 * Math.sin(a)));
+  }
+  const arcMat = new THREE.LineBasicMaterial({ color: COL.red, transparent: true, opacity: 0 });
+  scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(arcPts), arcMat));
+  const angleLb = makeLabel("144°", { color: "#b03a30", world: 1.5 });
+  angleLb.position.set(1.1, 0.5, 0);
+  angleLb.material.opacity = 0;
+  scene.add(angleLb);
+
+  const cEdge = new THREE.Color(COL.edge), cRed = new THREE.Color(COL.red);
+
+  return {
+    update(st) {
+      const R = r + (l - r) * st.t;
+      const psi = 2 * Math.PI * r / R;
+      const h = Math.sqrt(Math.max(l * l - R * R, 0));
+      for (let iu = 0; iu <= NU; iu++) {
+        const ang = -psi / 2 + (iu / NU) * psi;
+        const rx = R * Math.cos(ang), rz = R * Math.sin(ang);
+        for (let iv = 0; iv <= NV; iv++) {
+          const f = iv / NV;
+          const n = iu * (NV + 1) + iv;
+          posArr[n*3] = rx * f;
+          posArr[n*3+1] = h * (1 - f);
+          posArr[n*3+2] = rz * f;
+        }
+      }
+      geo.attributes.position.needsUpdate = true;
+      geo.computeVertexNormals();
+      [0, NU].forEach((iu, si) => {
+        const pa = seams[si].geometry.attributes.position;
+        for (let iv = 0; iv <= NV; iv++) {
+          const n = iu * (NV + 1) + iv;
+          pa.setXYZ(iv, posArr[n*3], posArr[n*3+1] + 0.015, posArr[n*3+2]);
+        }
+        pa.needsUpdate = true;
+      });
+      const ra = rim.geo.attributes.position;
+      for (let iu = 0; iu <= NU; iu++) {
+        const n = iu * (NV + 1) + NV;
+        ra.setXYZ(iu, posArr[n*3], posArr[n*3+1] + 0.015, posArr[n*3+2]);
+      }
+      ra.needsUpdate = true;
+      rimMat.color.copy(cEdge).lerp(cRed, st.rimHi);
+      // 円すいの底面(中央)はフェードアウト、展開図の底面は弧に接して現れる
+      baseC.disk.material.opacity = st.baseOp * 0.4;
+      baseC.ringMat.opacity = st.baseOp;
+      baseN.disk.material.opacity = st.netOp * 0.4;
+      baseN.ringMat.opacity = st.netOp;
+      baseN.ringMat.color.copy(cEdge).lerp(cRed, st.netHi);
+      touchDot.material.opacity = st.netHi;
+      arcMat.opacity = st.angleOp;
+      angleLb.material.opacity = st.angleOp;
+      angleLb.visible = st.angleOp > 0.01;
+    },
+  };
+}
+
+// ------------------------------------------------------------
+// ビルダー⑤: おもりと水面
+// ------------------------------------------------------------
+
+
+/* ===== src/units/geometry-solid/builders/cubeNet.js ===== */
+// ==== ビルダー: cubeNet(立方体の展開図) ====
+// 立方体の6面を「ヒンジの木」でつないで展開する。面によっては
+// 親の面(例: 十字型のふた→前面)にぶら下がり、2段階で回転する。
+// params.net: "cross"(十字型) / "stairs"(階段型)
+function buildCubeNet(scene, params) {
+  const h = params.size / 2;
+  makeGrid(scene, 44, 22, 0, 0);
+
+  // 面の頂点(閉じた状態)。bottomは固定。
+  const F = {
+    bottom: [[-h, 0, -h], [h, 0, -h], [h, 0, h], [-h, 0, h]],
+    front:  [[-h, 0, h], [h, 0, h], [h, 2 * h, h], [-h, 2 * h, h]],
+    back:   [[h, 0, -h], [-h, 0, -h], [-h, 2 * h, -h], [h, 2 * h, -h]],
+    right:  [[h, 0, h], [h, 0, -h], [h, 2 * h, -h], [h, 2 * h, h]],
+    left:   [[-h, 0, -h], [-h, 0, h], [-h, 2 * h, h], [-h, 2 * h, -h]],
+    top:    [[-h, 2 * h, -h], [h, 2 * h, -h], [h, 2 * h, h], [-h, 2 * h, h]],
+  };
+  // ヒンジ木: face → { parent(nullなら底面に直結), anchor, axis, angle(度) }
+  const NETS = {
+    cross: {
+      front: { parent: null,    anchor: [0, 0, h],      axis: [1, 0, 0], angle: 90 },
+      back:  { parent: null,    anchor: [0, 0, -h],     axis: [1, 0, 0], angle: -90 },
+      right: { parent: null,    anchor: [h, 0, 0],      axis: [0, 0, 1], angle: -90 },
+      left:  { parent: null,    anchor: [-h, 0, 0],     axis: [0, 0, 1], angle: 90 },
+      top:   { parent: "front", anchor: [0, 2 * h, h],  axis: [1, 0, 0], angle: 90 },
+    },
+    stairs: {
+      front: { parent: null,    anchor: [0, 0, h],      axis: [1, 0, 0], angle: 90 },
+      left:  { parent: "front", anchor: [-h, 0, h],     axis: [0, 1, 0], angle: 90 },
+      right: { parent: null,    anchor: [h, 0, 0],      axis: [0, 0, 1], angle: -90 },
+      back:  { parent: "right", anchor: [h, 0, -h],     axis: [0, 1, 0], angle: -90 },
+      top:   { parent: "back",  anchor: [0, 2 * h, -h], axis: [1, 0, 0], angle: -90 },
+    },
+  };
+  const net = NETS[params.net];
+
+  // 底面(固定)。ふた(top)はピンクにして行き先を追えるように。
+  scene.add(new THREE.Mesh(polysToGeometry([F.bottom.map((p) => [p[0], p[1] + 0.004, p[2]])]), solidMat(COL.solid2)));
+  scene.add(new THREE.LineSegments(polysToEdges([F.bottom]), new THREE.LineBasicMaterial({ color: COL.edge })));
+
+  const quads = {};
+  for (const name of Object.keys(net)) {
+    quads[name] = dynQuad(scene, solidMat(name === "top" ? COL.cap : COL.solid));
+  }
+
+  // 面nameの頂点を、展開の進み t(0..1) で計算(自分→親→…の順にヒンジ回転)
+  function faceVertsAt(name, t) {
+    const chain = [];
+    for (let cur = name; cur && net[cur]; cur = net[cur].parent) chain.push(net[cur]);
+    return F[name].map((v) => {
+      let p = v;
+      for (const hg of chain) p = rotAxis(p, hg.anchor, hg.axis, hg.angle * Math.PI / 180 * t);
+      return p;
+    });
+  }
+
+  return {
+    update(st) {
+      for (const name of Object.keys(net)) {
+        const vs = faceVertsAt(name, st.t);
+        quads[name].set(vs[0], vs[1], vs[2], vs[3]);
+      }
+    },
+  };
+}
+
+
+/* ===== src/units/geometry-solid/builders/cut.js ===== */
+// ==== ビルダー: cut ====
+function buildCut(scene, params) {
+  const S = params.size;
+  const verts = boxVerts(0, 0, 0, S, S, S);
+  const plane = { n: [1,1,1], d: 1.5 * S };
+  const nhat = V3(vNorm(plane.n));
+  const { below, above, cap } = splitPolyhedron(verts, cubeFaceIdx, plane);
+
+  const gBelow = new THREE.Group();
+  const gAbove = new THREE.Group();
+  scene.add(gBelow, gAbove);
+
+  const edgeMat = new THREE.LineBasicMaterial({ color: COL.edge });
+  gBelow.add(new THREE.Mesh(polysToGeometry(below), solidMat(COL.solid)));
+  gAbove.add(new THREE.Mesh(polysToGeometry(above), solidMat(COL.solid2)));
+  const capMeshB = new THREE.Mesh(polysToGeometry([cap]), solidMat(COL.cap));
+  const capMeshA = new THREE.Mesh(polysToGeometry([[...cap].reverse()]), solidMat(COL.cap));
+  gBelow.add(capMeshB); gAbove.add(capMeshA);
+  gBelow.add(new THREE.LineSegments(polysToEdges([...below, cap]), edgeMat));
+  gAbove.add(new THREE.LineSegments(polysToEdges([...above, cap]), edgeMat));
+
+  const ringPts = cap.map((p) => V3(p).add(nhat.clone().multiplyScalar(0.04)));
+  const ringMat = new THREE.LineBasicMaterial({ color: COL.red, transparent: true, opacity: 0 });
+  gBelow.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([...ringPts, ringPts[0]]), ringMat));
+
+  const planeMesh = new THREE.Mesh(
+    new THREE.CircleGeometry(S * 1.05, 48),
+    new THREE.MeshBasicMaterial({ color: 0xe2574c, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false })
+  );
+  planeMesh.position.set(S/2, S/2, S/2);
+  planeMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,1), nhat);
+  scene.add(planeMesh);
+
+  const hex = params.hexPts;
+  const segs = [];
+  for (let i = 0; i < 6; i++) {
+    const p1 = hex[i], p2 = hex[(i+1)%6];
+    let off = [0,0,0];
+    for (let k = 0; k < 3; k++) {
+      if (Math.abs(p1[k]-p2[k]) < 1e-9 && (Math.abs(p1[k]) < 1e-9 || Math.abs(p1[k]-S) < 1e-9)) {
+        off[k] = p1[k] < 1e-9 ? -0.04 : 0.04;
+      }
+    }
+    const line = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints([V3(vAdd(p1, off)), V3(vAdd(p2, off))]),
+      new THREE.LineBasicMaterial({ color: COL.red, transparent: true, opacity: 0 })
+    );
+    scene.add(line);
+    segs.push(line);
+  }
+
+  const dots = params.dotIdx.map((i) => {
+    const d = new THREE.Mesh(
+      new THREE.SphereGeometry(0.24, 20, 14),
+      new THREE.MeshStandardMaterial({ color: COL.red, roughness: 0.5 })
+    );
+    d.position.copy(V3(hex[i]));
+    d.scale.setScalar(0.001);
+    scene.add(d);
+    return d;
+  });
+
+  makeGrid(scene, 30, 15, S/2, S/2);
+  const aside = V3(vNorm([1,-1,0]));
+
+  return {
+    update(st) {
+      gBelow.position.copy(nhat.clone().multiplyScalar(-st.sep));
+      gAbove.position.copy(nhat.clone().multiplyScalar(st.sep).add(aside.clone().multiplyScalar(st.aside)));
+      const capsOn = st.sep > 0.03;
+      capMeshB.visible = capsOn; capMeshA.visible = capsOn;
+      planeMesh.material.opacity = st.planeOp;
+      planeMesh.visible = st.planeOp > 0.01;
+      dots.forEach((d) => d.scale.setScalar(Math.max(0.001, st.dots)));
+      segs.forEach((s, i) => {
+        const o = clamp01(st.cutDraw * 6 - i) * st.lineOp;
+        s.material.opacity = o;
+        s.visible = o > 0.01;
+      });
+      ringMat.opacity = st.ring;
+    },
+  };
+}
+
+// ------------------------------------------------------------
+// ビルダー②: 積み木の切断 (3x3x3を3頂点で切る)
+// ------------------------------------------------------------
+
+
+/* ===== src/units/geometry-solid/builders/cutBlocks.js ===== */
+// ==== ビルダー: cutBlocks ====
+function buildCutBlocks(scene, params) {
+  const s = params.unit, N = 3, D = N * s;
+  const plane = { n: [1,1,1], d: D };
+  const nhat = V3(vNorm(plane.n));
+  const edgeMat = new THREE.LineBasicMaterial({ color: COL.edge });
+  const cBase = new THREE.Color(COL.solid);
+  const cBodyHi = new THREE.Color(0xf3d3cf);
+  const cCapHi = new THREE.Color(0xe2574c);
+  const sharedMat = solidMat(COL.solid);
+
+  makeGrid(scene, 40, 20, D/2, D/2);
+
+  const minis = [];
+  for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) for (let k = 0; k < N; k++) {
+    const verts = boxVerts(i*s, j*s, k*s, (i+1)*s, (j+1)*s, (k+1)*s);
+    const minSum = (i + j + k) * s;
+    const cut = minSum < plane.d - 1e-9 && minSum + 3 * s > plane.d + 1e-9;
+    const g = new THREE.Group();
+    scene.add(g);
+    const mini = { g, j, cut, grpBelow: null, bodyMats: [], capMats: [] };
+    if (cut) {
+      const { below, above, cap } = splitPolyhedron(verts, cubeFaceIdx, plane);
+      const mBody1 = solidMat(COL.solid), mBody2 = solidMat(COL.solid);
+      const mCap1 = solidMat(COL.solid), mCap2 = solidMat(COL.solid);
+      const gb = new THREE.Group(), ga = new THREE.Group();
+      const capB = new THREE.Mesh(polysToGeometry([cap]), mCap1);
+      capB.position.copy(nhat.clone().multiplyScalar(-0.015));
+      const capA = new THREE.Mesh(polysToGeometry([[...cap].reverse()]), mCap2);
+      capA.position.copy(nhat.clone().multiplyScalar(0.015));
+      gb.add(new THREE.Mesh(polysToGeometry(below), mBody1), capB);
+      gb.add(new THREE.LineSegments(polysToEdges([...below, cap]), edgeMat));
+      ga.add(new THREE.Mesh(polysToGeometry(above), mBody2), capA);
+      ga.add(new THREE.LineSegments(polysToEdges([...above, cap]), edgeMat));
+      g.add(gb, ga);
+      mini.grpBelow = gb;
+      mini.bodyMats = [mBody1, mBody2];
+      mini.capMats = [mCap1, mCap2];
+    } else {
+      const facePolys = cubeFaceIdx.map((f) => f.map((vi) => verts[vi]));
+      const sub = new THREE.Group();
+      sub.add(new THREE.Mesh(polysToGeometry(facePolys), sharedMat));
+      sub.add(new THREE.LineSegments(polysToEdges(facePolys), edgeMat));
+      g.add(sub);
+      if (minSum + 3 * s <= plane.d + 1e-9) mini.grpBelow = sub; // 完全に切り口の下側
+    }
+    minis.push(mini);
+  }
+
+  // 3頂点マーカー
+  const dotPts = [[D,0,0],[0,D,0],[0,0,D]];
+  const dots = dotPts.map((p) => {
+    const d = new THREE.Mesh(
+      new THREE.SphereGeometry(0.26, 20, 14),
+      new THREE.MeshStandardMaterial({ color: COL.red, roughness: 0.5 })
+    );
+    d.position.copy(V3(p));
+    d.scale.setScalar(0.001);
+    scene.add(d);
+    return d;
+  });
+
+  const planeMesh = new THREE.Mesh(
+    new THREE.CircleGeometry(D * 0.95, 48),
+    new THREE.MeshBasicMaterial({ color: 0xe2574c, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false })
+  );
+  planeMesh.position.set(D/3, D/3, D/3);
+  planeMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,1), nhat);
+  scene.add(planeMesh);
+
+  // 段ごとの個数ラベル
+  const counts = params.layerCounts.map((c) => {
+    const lb = makeLabel(`${c}個`, { color: "#b03a30", world: 1.5 });
+    lb.material.opacity = 0;
+    scene.add(lb);
+    return lb;
+  });
+
+  return {
+    update(st) {
+      for (const m of minis) {
+        m.g.position.set(m.j * params.spread * st.explode, m.j * params.liftGap * st.lift, 0);
+        if (m.grpBelow) m.grpBelow.position.copy(nhat.clone().multiplyScalar(-st.sep));
+        if (m.cut) {
+          m.bodyMats.forEach((mat) => mat.color.copy(cBase).lerp(cBodyHi, st.highlight));
+          m.capMats.forEach((mat) => mat.color.copy(cBase).lerp(cCapHi, st.highlight));
+        }
+      }
+      dots.forEach((d) => d.scale.setScalar(Math.max(0.001, st.dots)));
+      planeMesh.material.opacity = st.planeOp;
+      planeMesh.visible = st.planeOp > 0.01;
+      counts.forEach((lb, j) => {
+        lb.material.opacity = st.countOp;
+        lb.visible = st.countOp > 0.01;
+        lb.position.set(D/2 + j * params.spread * st.explode, s * 1.2, -2.6);
+      });
+    },
+  };
+}
+
+// ------------------------------------------------------------
+// ビルダー③: 三角すいの展開 (→正方形)
+// ------------------------------------------------------------
+
+
+/* ===== src/units/geometry-solid/builders/cylinder.js ===== */
+// ==== ビルダー: cylinder ====
+function buildCylinder(scene, params) {
+  const { r, h } = params;
+  const C = 2 * Math.PI * r;
+  makeGrid(scene, 40, 20, h / 2, C / 2);
+  const NU = 72; // 円周方向
+
+  const nVert = (NU + 1) * 2;
+  const posArr = new Float32Array(nVert * 3);
+  const idx = [];
+  for (let iu = 0; iu < NU; iu++) {
+    const a = iu * 2, b = a + 2;
+    idx.push(a, b, a + 1, b, b + 1, a + 1);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.BufferAttribute(posArr, 3));
+  geo.setIndex(idx);
+  scene.add(new THREE.Mesh(geo, solidMat(COL.solid)));
+
+  // ふち(2本: x=0側 / x=h側) と 切り込み(はじまり m=0: 赤)
+  const rimGeos = [0, 1].map(() => {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.Float32BufferAttribute(new Float32Array((NU + 1) * 3), 3));
+    scene.add(new THREE.Line(g, new THREE.LineBasicMaterial({ color: COL.edge })));
+    return g;
+  });
+  const seamGeos = [0, 1].map(() => {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.Float32BufferAttribute(new Float32Array(6), 3));
+    scene.add(new THREE.Line(g, new THREE.LineBasicMaterial({ color: COL.red })));
+    return g;
+  });
+
+  // 転がる円柱の両フタ(円板)
+  const capDisks = [0, 1].map((i) => {
+    const disk = new THREE.Mesh(
+      new THREE.CircleGeometry(r, 40),
+      new THREE.MeshBasicMaterial({ color: 0xdde3ea, transparent: true, opacity: 0.55, side: THREE.DoubleSide, depthWrite: false })
+    );
+    disk.rotation.y = Math.PI / 2;
+    scene.add(disk);
+    return disk;
+  });
+
+  // 展開図の円2枚 (長方形の長い辺に接する)
+  const netCircles = [0, 1].map((i) => {
+    const cx = i === 0 ? -r : h + r;
+    const pts = [];
+    for (let k = 0; k <= 60; k++) {
+      const a = (k / 60) * Math.PI * 2;
+      pts.push(new THREE.Vector3(cx + r * Math.cos(a), 0.03, C / 2 + r * Math.sin(a)));
+    }
+    const mat = new THREE.LineBasicMaterial({ color: COL.edge, transparent: true, opacity: 0 });
+    scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), mat));
+    const disk = new THREE.Mesh(
+      new THREE.CircleGeometry(r, 40),
+      new THREE.MeshBasicMaterial({ color: 0xdde3ea, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false })
+    );
+    disk.rotation.x = -Math.PI / 2;
+    disk.position.set(cx, 0.012, C / 2);
+    scene.add(disk);
+    return { mat, disk };
+  });
+
+  return {
+    update(st) {
+      const theta = st.t * 2 * Math.PI;   // 転がった角度
+      const zc = theta * r;               // 接地点
+      for (let iu = 0; iu <= NU; iu++) {
+        const m = (iu / NU) * 2 * Math.PI;
+        let y, z;
+        if (m <= theta) { y = 0.012; z = m * r; }
+        else {
+          const d = m - theta;
+          z = zc + r * Math.sin(d);
+          y = r * (1 - Math.cos(d)) + 0.012;
+        }
+        posArr[(iu*2)*3] = 0;   posArr[(iu*2)*3+1] = y; posArr[(iu*2)*3+2] = z;
+        posArr[(iu*2+1)*3] = h; posArr[(iu*2+1)*3+1] = y; posArr[(iu*2+1)*3+2] = z;
+      }
+      geo.attributes.position.needsUpdate = true;
+      geo.computeVertexNormals();
+      rimGeos.forEach((g, side) => {
+        const pa = g.attributes.position;
+        for (let iu = 0; iu <= NU; iu++) {
+          pa.setXYZ(iu, side * h, posArr[(iu*2)*3+1] + 0.012, posArr[(iu*2)*3+2]);
+        }
+        pa.needsUpdate = true;
+      });
+      // 切り込み線: m=0 と m=2π (同じ線が2本に分かれる)
+      seamGeos.forEach((g, si) => {
+        const iu = si === 0 ? 0 : NU;
+        const pa = g.attributes.position;
+        pa.setXYZ(0, 0, posArr[(iu*2)*3+1] + 0.015, posArr[(iu*2)*3+2]);
+        pa.setXYZ(1, h, posArr[(iu*2)*3+1] + 0.015, posArr[(iu*2)*3+2]);
+        pa.needsUpdate = true;
+      });
+      // フタ: 転がる円柱と一緒に移動 → 開き切ると消える
+      const capOp = 0.55 * (1 - st.netOp);
+      capDisks.forEach((disk, side) => {
+        disk.position.set(side * h, r, zc);
+        disk.material.opacity = capOp * (1 - st.t * 0.4);
+        disk.visible = disk.material.opacity > 0.02;
+      });
+      netCircles.forEach((c) => {
+        c.mat.opacity = st.netOp;
+        c.disk.material.opacity = st.netOp * 0.4;
+      });
+    },
+  };
+}
+
+// ------------------------------------------------------------
+// ビルダー: 扇形柱 (底面が扇形の立体の展開)
+// ------------------------------------------------------------
+
+
+/* ===== src/units/geometry-solid/builders/lathe.js ===== */
+// ==== ビルダー: lathe ====
+function buildLathe(scene, params) {
+  makeGrid(scene, 36, 18, 0, 0);
+  // 回した形 (長方形3x9 + 直角三角形 底3高さ9)
+  const profPts = [[0,0,0],[3,0,0],[3,9,0],[0,18,0]];
+  const profMat = new THREE.MeshBasicMaterial({ color: 0xe2574c, transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthWrite: false });
+  scene.add(new THREE.Mesh(polysToGeometry([profPts]), profMat));
+  const profLineMat = new THREE.LineBasicMaterial({ color: COL.red });
+  scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([...profPts.map(V3), V3(profPts[0])]), profLineMat));
+  // 回転の軸 (点線)
+  const axisMat = new THREE.LineDashedMaterial({ color: 0x40506a, dashSize: 0.5, gapSize: 0.32 });
+  const axisLine = new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,-1.2,0), new THREE.Vector3(0,19.5,0)]),
+    axisMat
+  );
+  axisLine.computeLineDistances();
+  scene.add(axisLine);
+
+  const lathePts = [new THREE.Vector2(0.02,0), new THREE.Vector2(3,0), new THREE.Vector2(3,9), new THREE.Vector2(0.02,18)];
+  const mat = solidMat(COL.solid);
+  mat.transparent = true; mat.opacity = 0.92;
+  const mesh = new THREE.Mesh(new THREE.LatheGeometry(lathePts, 48, 0, 0.01), mat);
+  mesh.rotation.y = Math.PI / 2; // φ=0 を +x(断面図形の位置)に合わせる
+  scene.add(mesh);
+  // 回転の先端(動く輪郭)
+  const sweepGeo = new THREE.BufferGeometry();
+  sweepGeo.setAttribute("position", new THREE.Float32BufferAttribute(new Float32Array(12), 3));
+  scene.add(new THREE.Line(sweepGeo, new THREE.LineBasicMaterial({ color: COL.edge })));
+
+  let lastPhi = -1;
+  return {
+    update(st) {
+      const phi = Math.max(st.t * Math.PI * 2, 0.01);
+      if (Math.abs(phi - lastPhi) > 0.002) {
+        mesh.geometry.dispose();
+        mesh.geometry = new THREE.LatheGeometry(lathePts, 48, 0, phi);
+        lastPhi = phi;
+        const pa = sweepGeo.attributes.position;
+        profPts.forEach((p, i) => {
+          pa.setXYZ(i, p[0]*Math.cos(phi)*1.002, p[1], -p[0]*Math.sin(phi)*1.002);
+        });
+        pa.needsUpdate = true;
+      }
+    },
+  };
+}
+
+// ------------------------------------------------------------
+// シナリオ定義
+// ------------------------------------------------------------
+
+
+/* ===== src/units/geometry-solid/builders/notch.js ===== */
+// ==== ビルダー: notch ====
+function buildNotch(scene, params) {
+  makeGrid(scene, 40, 20, 4, 2);
+  const edgeMat = new THREE.LineBasicMaterial({ color: 0x40506a });
+  const boxes = [
+    { g: new THREE.BoxGeometry(8, 2, 4), p: [4, 1, 2] },
+    { g: new THREE.BoxGeometry(2, 3, 4), p: [1, 3.5, 2] },
+    { g: new THREE.BoxGeometry(2, 3, 4), p: [7, 3.5, 2] },
+  ];
+  boxes.forEach((b) => {
+    const mesh = new THREE.Mesh(b.g, solidMat(COL.solid));
+    mesh.position.set(...b.p);
+    scene.add(mesh);
+    const e = new THREE.LineSegments(new THREE.EdgesGeometry(b.g), edgeMat);
+    e.position.set(...b.p);
+    scene.add(e);
+  });
+  const inner = redOverlayMat();
+  [[2.02],[5.98]].forEach(([x]) => {
+    const m = new THREE.Mesh(polysToGeometry([[[x,2,0],[x,2,4],[x,5,4],[x,5,0]]]), inner);
+    scene.add(m);
+  });
+  return {
+    update(st) {
+      inner.opacity = st.inner * 0.6;
+    },
+  };
+}
+
+// ------------------------------------------------------------
+// ビルダー: 回転体
+// ------------------------------------------------------------
+
+
+/* ===== src/units/geometry-solid/builders/proj.js ===== */
+// ==== ビルダー: proj ====
+function buildProj(scene, params) {
+  makeGrid(scene, 36, 18, 3, 2);
+  const edgeMat = new THREE.LineBasicMaterial({ color: 0x40506a });
+  // 階段型: 下段 6x4x2 (y0..2) + 上段 6x2x2 (z0..2, y2..4)
+  const boxes = [
+    { g: new THREE.BoxGeometry(6, 2, 4), p: [3, 1, 2] },
+    { g: new THREE.BoxGeometry(6, 2, 2), p: [3, 3, 1] },
+  ];
+  boxes.forEach((b) => {
+    const mesh = new THREE.Mesh(b.g, solidMat(COL.solid));
+    mesh.position.set(...b.p);
+    scene.add(mesh);
+    const e = new THREE.LineSegments(new THREE.EdgesGeometry(b.g), edgeMat);
+    e.position.set(...b.p);
+    scene.add(e);
+  });
+
+  function quadMesh(pts, mat) {
+    const m = new THREE.Mesh(polysToGeometry([pts]), mat);
+    scene.add(m);
+    return m;
+  }
+  // 面ハイライト (方向ごと)
+  const oT = redOverlayMat(), oF = redOverlayMat(), oS = redOverlayMat();
+  quadMesh([[0,4.02,0],[6,4.02,0],[6,4.02,2],[0,4.02,2]], oT);
+  quadMesh([[0,2.02,2],[6,2.02,2],[6,2.02,4],[0,2.02,4]], oT);
+  quadMesh([[0,-0.02,0],[6,-0.02,0],[6,-0.02,4],[0,-0.02,4]], oT);
+  quadMesh([[0,0,4.02],[6,0,4.02],[6,2,4.02],[0,2,4.02]], oF);
+  quadMesh([[0,2,2.02],[6,2,2.02],[6,4,2.02],[0,4,2.02]], oF);
+  quadMesh([[0,0,-0.02],[6,0,-0.02],[6,4,-0.02],[0,4,-0.02]], oF);
+  const sPoly = (x) => [[x,0,0],[x,0,4],[x,2,4],[x,2,2],[x,4,2],[x,4,0]];
+  quadMesh(sPoly(6.02), oS);
+  quadMesh(sPoly(-0.02), oS);
+
+  // シルエット板 (見た目の形)
+  function silhouette(pts, mat) {
+    const m = new THREE.Mesh(polysToGeometry([pts]), mat);
+    const outline = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints([...pts.map(V3), V3(pts[0])]),
+      new THREE.LineBasicMaterial({ color: COL.red, transparent: true, opacity: 0 })
+    );
+    scene.add(m, outline);
+    return { m, outline };
+  }
+  const pT = redOverlayMat(), pF = redOverlayMat(), pS = redOverlayMat();
+  const silT = silhouette([[0,7.5,0],[6,7.5,0],[6,7.5,4],[0,7.5,4]], pT);
+  const silF = silhouette([[0,0,7.5],[6,0,7.5],[6,4,7.5],[0,4,7.5]], pF);
+  const silS = silhouette([[10,0,0],[10,0,4],[10,2,4],[10,2,2],[10,4,2],[10,4,0]], pS);
+
+  return {
+    update(st) {
+      oT.opacity = st.oT * 0.55; oF.opacity = st.oF * 0.55; oS.opacity = st.oS * 0.55;
+      pT.opacity = st.oT * 0.4; pF.opacity = st.oF * 0.4; pS.opacity = st.oS * 0.4;
+      silT.outline.material.opacity = st.oT;
+      silF.outline.material.opacity = st.oF;
+      silS.outline.material.opacity = st.oS;
+    },
+  };
+}
+
+// ------------------------------------------------------------
+// ビルダー: 表面積・へこみ (向かい合う内側の面)
+// ------------------------------------------------------------
+
+
+/* ===== src/units/geometry-solid/builders/pyramidNet.js ===== */
+// ==== ビルダー: pyramidNet ====
+function buildPyramidNet(scene, params) {
+  const { half, hgt } = params; // 半辺3, 高さ4
+  makeGrid(scene, 32, 16, 0, 0);
+  const edgeMat = new THREE.LineBasicMaterial({ color: COL.edge });
+  const apex = [0, hgt, 0];
+
+  // 底面(固定)
+  const basePts = [[-half,0.005,-half],[half,0.005,-half],[half,0.005,half],[-half,0.005,half]];
+  scene.add(new THREE.Mesh(polysToGeometry([basePts]), solidMat(COL.solid2)));
+  scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([...basePts.map(V3), V3(basePts[0])]), edgeMat));
+
+  // 4つの側面 (ヒンジ)
+  const edges = [
+    [[half,0,-half],[half,0,half]],
+    [[half,0,half],[-half,0,half]],
+    [[-half,0,half],[-half,0,-half]],
+    [[-half,0,-half],[half,0,-half]],
+  ];
+  const movers = edges.map(([a, b]) => {
+    const { axis, alpha } = hingeAlpha(a, b, apex, [0,0,0]);
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.Float32BufferAttribute(new Float32Array(9), 3));
+    const mesh = new THREE.Mesh(geo, solidMat(COL.solid));
+    const lineGeo = new THREE.BufferGeometry();
+    lineGeo.setAttribute("position", new THREE.Float32BufferAttribute(new Float32Array(12), 3));
+    const line = new THREE.Line(lineGeo, edgeMat);
+    scene.add(mesh, line);
+    return { a, b, axis, alpha, mesh, line };
+  });
+
+  // 3・4・5の直角三角形 (中心→辺の中点→頂点)
+  const triPts = [[0,0.05,0],[half,0.05,0],apex,[0,0.05,0]].map(V3);
+  const triMat = new THREE.LineBasicMaterial({ color: COL.red, transparent: true, opacity: 0 });
+  scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(triPts), triMat));
+
+  return {
+    update(st) {
+      for (const mv of movers) {
+        const p = rotAxis(apex, mv.a, mv.axis, mv.alpha * st.t);
+        const pa = mv.mesh.geometry.attributes.position;
+        pa.setXYZ(0, ...mv.a); pa.setXYZ(1, ...mv.b); pa.setXYZ(2, ...p);
+        pa.needsUpdate = true;
+        mv.mesh.geometry.computeVertexNormals();
+        const la = mv.line.geometry.attributes.position;
+        la.setXYZ(0, ...mv.a); la.setXYZ(1, ...mv.b); la.setXYZ(2, ...p); la.setXYZ(3, ...mv.a);
+        la.needsUpdate = true;
+      }
+      triMat.opacity = st.tri;
+    },
+  };
+}
+
+// ------------------------------------------------------------
+// ビルダー: 表面積・投影 (上下・前後・左右)
+// ------------------------------------------------------------
+
+
+/* ===== src/units/geometry-solid/builders/pyramidVolume.js ===== */
+// ==== ビルダー: pyramidVolume(すいの体積はなぜ×1/3か) ====
+// 立方体を、1つの頂点を共有する3つの合同な四角すいに切り分ける。
+// 3つがぴったり集まって立方体になる → すい1つ = 立方体の1/3。
+//
+// params: { size }  立方体の1辺
+function buildPyramidVolume(scene, params) {
+  const s = params.size, h = s / 2;
+  makeGrid(scene, 32, 16, 0, 0);
+
+  // 立方体の8頂点(床の上、x/z中心が原点)
+  const b1 = [-h, 0, -h], b2 = [h, 0, -h], b3 = [h, 0, h], b4 = [-h, 0, h];
+  const t1 = [-h, s, -h], t2 = [h, s, -h], t3 = [h, s, h], t4 = [-h, s, h];
+  const apex = t1; // 3つのすいが共有する頂点
+
+  // 3つの四角すい: 底面 = apexをふくまない3つの面
+  const pyramids = [
+    { base: [b1, b2, b3, b4], color: COL.solid,  dir: [0, 0, 0] },     // 底面 → 動かさない
+    { base: [b4, b3, t3, t4], color: COL.solid2, dir: [0, 0, 1] },     // 前面 → +z へ
+    { base: [b2, b3, t3, t2], color: COL.cap,    dir: [1, 0, 0] },     // 右面 → +x へ
+  ];
+
+  const groups = pyramids.map((p) => {
+    const faces = [p.base];
+    for (let i = 0; i < 4; i++) faces.push([p.base[i], p.base[(i + 1) % 4], apex]);
+    const group = new THREE.Group();
+    group.add(new THREE.Mesh(polysToGeometry(faces), solidMat(p.color)));
+    group.add(new THREE.LineSegments(polysToEdges(faces), new THREE.LineBasicMaterial({ color: COL.edge })));
+    scene.add(group);
+    return { group, dir: p.dir };
+  });
+
+  return {
+    update(st) {
+      const d = st.sep * s * 0.9;
+      for (const g of groups) {
+        g.group.position.set(g.dir[0] * d, g.dir[1] * d, g.dir[2] * d);
+      }
+    },
+  };
+}
+
+
+/* ===== src/units/geometry-solid/builders/sectorPrism.js ===== */
+// ==== ビルダー: sectorPrism ====
+function buildSectorPrism(scene, params) {
+  const { r, h } = params;
+  const Q = Math.PI / 2;
+  const L = r * Q;              // 弧の長さ 9.42
+  const NC = 40;
+  makeGrid(scene, 44, 22, 3, 0);
+  const edgeMat = new THREE.LineBasicMaterial({ color: COL.edge });
+
+  // ---- 立体パーツ (組み立て時) ----
+  // 底面(下・固定)
+  const botPts = sectorPoly(r, 0, Q, NC, 0.005);
+  scene.add(new THREE.Mesh(polysToGeometry([botPts]), solidMat(COL.solid2)));
+  scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([...botPts.map(V3), V3(botPts[0])]), edgeMat));
+
+  // 上のフタ(扇形・動く)→ 展開図では長方形の下に置く
+  const topGroup = new THREE.Group();
+  const topPts = sectorPoly(r, 0, Q, NC, 0);
+  topGroup.add(new THREE.Mesh(polysToGeometry([topPts]), solidMat(COL.solid2)));
+  topGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([...topPts.map(V3), V3(topPts[0])]), edgeMat));
+  scene.add(topGroup);
+
+  // 展開図の帯(側面3枚まとめて1つの長方形)。横位置 x0..x0+(6+L+6), 高さ0..h
+  // 立体では: [0..6=直辺A(x軸)] → [弧9.42] → [6..12=直辺B(z軸)]
+  // 帯メッシュ: パラメータ p を 0..(6+L+6) で動かし、立体位置↔展開位置を補間
+  const straight = r; // 6
+  const total = straight + L + straight;
+  const NP = 96;
+  const nVert = (NP + 1) * 2;
+  const pos = new Float32Array(nVert * 3);
+  const idx = [];
+  for (let i = 0; i < NP; i++) { const a = i*2, b = a+2; idx.push(a,b,a+1, b,b+1,a+1); }
+  const bandGeo = new THREE.BufferGeometry();
+  bandGeo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  bandGeo.setIndex(idx);
+  scene.add(new THREE.Mesh(bandGeo, solidMat(COL.solid)));
+  const bandLines = [0,1].map(() => {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.Float32BufferAttribute(new Float32Array((NP+1)*3), 3));
+    scene.add(new THREE.Line(g, edgeMat));
+    return g;
+  });
+  // 折り目(直辺と弧の境目)を示す赤い縦線2本
+  const foldLines = [straight, straight + L].map(() => {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.Float32BufferAttribute(new Float32Array(6), 3));
+    const line = new THREE.Line(g, new THREE.LineBasicMaterial({ color: COL.red, transparent: true, opacity: 0 }));
+    scene.add(line);
+    return line;
+  });
+
+  // 立体上の底辺の座標(p→3D)
+  function solidPoint(p) {
+    if (p <= straight) {
+      // 直辺A: 原点→(r,0,0) に沿う。ただし展開の見栄えで弧が中央に来るよう、
+      // A は原点から +x、境界で弧の始点(r,0,0)へ
+      return [p, 0, 0];
+    } else if (p <= straight + L) {
+      const a = (p - straight) / r; // 0..Q
+      return [r * Math.cos(a), 0, r * Math.sin(a)];
+    } else {
+      const q = p - straight - L;    // 0..r 直辺B: (0,0,r)→原点方向? 実際は弧終点(0,0,r)から原点へ
+      return [0, 0, r - q];
+    }
+  }
+  // 展開図上の底辺の座標(p→2D 平面 x-z, 帯は -z 側に倒す)
+  const bandX0 = -total / 2 + 3;
+  function flatPoint(p) {
+    return [bandX0 + p, 0, -r - 1.5]; // 帯全体を手前(-z)に一直線
+  }
+
+  return {
+    update(st) {
+      const tt = st.topT;      // フタを上へ持ち上げ→展開位置
+      const bt = st.bandT;     // 側面帯を立体→展開へ
+      // フタ: 持ち上げてから展開図の帯の下(z=-r-1.5-r-...)へ
+      const lift = Math.sin(Math.min(tt,0.6)/0.6 * Math.PI/2) * (h + 2);
+      const netTop = [bandX0 + straight + L/2 - r*0.7, 0, -r - 1.5 - r - 2.6];
+      topGroup.position.set(netTop[0]*tt, h*(1-tt)+lift*(1-tt)+ (h+2)*0 +0.02 + lift*0, netTop[2]*tt);
+      // ↑ 単純化: 高さは (1-tt)*h から 0 へ、途中 lift 分持ち上げ
+      topGroup.position.y = h*(1-tt) + lift + 0.02;
+      topGroup.position.x = netTop[0]*tt;
+      topGroup.position.z = netTop[2]*tt;
+
+      // 側面帯: 各pで 立体底辺→展開底辺、上辺は+h を維持したまま倒れる
+      for (let i = 0; i <= NP; i++) {
+        const p = (i/NP)*total;
+        const sp = solidPoint(p);
+        const fp = flatPoint(p);
+        const bx = sp[0] + (fp[0]-sp[0])*bt;
+        const bz = sp[2] + (fp[2]-sp[2])*bt;
+        // 上辺: 立体では真上(+h)、展開では帯に沿って平ら(z がさらに -h ぶん外へ)
+        const topSolid = [sp[0], h, sp[2]];
+        const topFlat  = [fp[0], 0.01, fp[2] - h];
+        const tx = topSolid[0] + (topFlat[0]-topSolid[0])*bt;
+        const ty = topSolid[1] + (topFlat[1]-topSolid[1])*bt;
+        const tz = topSolid[2] + (topFlat[2]-topSolid[2])*bt;
+        pos[(i*2)*3]=bx; pos[(i*2)*3+1]=0.012; pos[(i*2)*3+2]=bz;
+        pos[(i*2+1)*3]=tx; pos[(i*2+1)*3+1]=ty+0.012; pos[(i*2+1)*3+2]=tz;
+      }
+      bandGeo.attributes.position.needsUpdate = true;
+      bandGeo.computeVertexNormals();
+      bandLines.forEach((g,row)=>{
+        const pa=g.attributes.position;
+        for(let i=0;i<=NP;i++){ pa.setXYZ(i, pos[(i*2+row)*3], pos[(i*2+row)*3+1]+0.01, pos[(i*2+row)*3+2]); }
+        pa.needsUpdate=true;
+      });
+      [straight, straight+L].forEach((p,fi)=>{
+        const i = Math.round(p/total*NP);
+        const g=foldLines[fi].geometry.attributes.position;
+        g.setXYZ(0, pos[(i*2)*3], pos[(i*2)*3+1]+0.02, pos[(i*2)*3+2]);
+        g.setXYZ(1, pos[(i*2+1)*3], pos[(i*2+1)*3+1]+0.02, pos[(i*2+1)*3+2]);
+        g.needsUpdate=true;
+        foldLines[fi].material.opacity = st.foldOp ?? 1;
+      });
+    },
+  };
+}
+
+// ------------------------------------------------------------
+// ビルダー: 四角すいの展開
+// ------------------------------------------------------------
+
+
+/* ===== src/units/geometry-solid/builders/string.js ===== */
+// ==== ビルダー: string ====
+function buildString(scene, params) {
+  makeGrid(scene, 36, 18, 5, 0);
+  const NU = 64, NV = 8, NS = 60;
+
+  function makeConeSys(r, l, angText) {
+    const group = new THREE.Group();
+    scene.add(group);
+    const Theta = 2 * Math.PI * r / l;
+    // 側面メッシュ
+    const nVert = (NU + 1) * (NV + 1);
+    const posArr = new Float32Array(nVert * 3);
+    const idx = [];
+    for (let iu = 0; iu < NU; iu++) for (let iv = 0; iv < NV; iv++) {
+      const a = iu * (NV + 1) + iv, b = a + (NV + 1);
+      idx.push(a, b, a + 1, b, b + 1, a + 1);
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.BufferAttribute(posArr, 3));
+    geo.setIndex(idx);
+    group.add(new THREE.Mesh(geo, solidMat(COL.solid)));
+    // 母線(切り込み)2本
+    const seamGeos = [0, NU].map(() => {
+      const g = new THREE.BufferGeometry();
+      g.setAttribute("position", new THREE.Float32BufferAttribute(new Float32Array((NV + 1) * 3), 3));
+      group.add(new THREE.Line(g, new THREE.LineBasicMaterial({ color: COL.edge })));
+      return g;
+    });
+    // ひも(展開図の弦を折り目パラメータで巻き付ける)
+    const chordX = l * Math.cos(Theta / 2);
+    const chordZ = l * Math.sin(Theta / 2);
+    const flat = [];
+    for (let i = 0; i <= NS; i++) {
+      const z = -chordZ + (i / NS) * 2 * chordZ;
+      const rho = Math.hypot(chordX, z);
+      const phi = Math.atan2(z, chordX);
+      flat.push({ rho, u: (phi + Theta / 2) / Theta });
+    }
+    const strGeo = new THREE.BufferGeometry();
+    strGeo.setAttribute("position", new THREE.Float32BufferAttribute(new Float32Array((NS + 1) * 3), 3));
+    group.add(new THREE.Line(strGeo, new THREE.LineBasicMaterial({ color: COL.red })));
+    // Aラベル×2
+    const labs = [0, 1].map(() => {
+      const lb = makeLabel("A", { color: "#b03a30", world: 1.05 });
+      group.add(lb);
+      return lb;
+    });
+    // 中心角ラベル
+    const angLb = makeLabel(angText, { color: "#b03a30", world: 1.4 });
+    angLb.position.set(1.4, 0.4, 0);
+    group.add(angLb);
+    // 底面の輪郭
+    const circ = [];
+    for (let i = 0; i <= 60; i++) {
+      const a = (i / 60) * Math.PI * 2;
+      circ.push(new THREE.Vector3(r * Math.cos(a), 0.03, r * Math.sin(a)));
+    }
+    const baseLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints(circ), new THREE.LineBasicMaterial({ color: COL.edge }));
+    group.add(baseLine);
+
+    const mats = collectMats(group);
+    return {
+      group,
+      update(t, op, angOp) {
+        const R = r + (l - r) * t;
+        const psi = 2 * Math.PI * r / R;
+        const h = Math.sqrt(Math.max(l * l - R * R, 0));
+        for (let iu = 0; iu <= NU; iu++) {
+          const ang = -psi / 2 + (iu / NU) * psi;
+          const cx = Math.cos(ang), sz = Math.sin(ang);
+          for (let iv = 0; iv <= NV; iv++) {
+            const f = iv / NV;
+            const n = iu * (NV + 1) + iv;
+            posArr[n*3] = R * cx * f;
+            posArr[n*3+1] = h * (1 - f);
+            posArr[n*3+2] = R * sz * f;
+          }
+        }
+        geo.attributes.position.needsUpdate = true;
+        geo.computeVertexNormals();
+        [0, NU].forEach((iu, si) => {
+          const pa = seamGeos[si].attributes.position;
+          for (let iv = 0; iv <= NV; iv++) {
+            const n = iu * (NV + 1) + iv;
+            pa.setXYZ(iv, posArr[n*3], posArr[n*3+1] + 0.015, posArr[n*3+2]);
+          }
+          pa.needsUpdate = true;
+        });
+        const sa = strGeo.attributes.position;
+        for (let i = 0; i <= NS; i++) {
+          const { rho, u } = flat[i];
+          const ang = -psi / 2 + u * psi;
+          const f = rho / l;
+          sa.setXYZ(i, R * Math.cos(ang) * f * 1.004, h * (1 - f) + 0.04, R * Math.sin(ang) * f * 1.004);
+        }
+        sa.needsUpdate = true;
+        [0, NS].forEach((i, li) => {
+          labs[li].position.set(sa.getX(i), sa.getY(i) + 0.55, sa.getZ(i));
+        });
+        mats.forEach((m) => (m.opacity = op));
+        baseLine.material.opacity = op * (1 - 0.85 * t);
+        angLb.material.opacity = op * angOp;
+        group.visible = op > 0.02;
+      },
+    };
+  }
+
+  const c1 = makeConeSys(params.r1, params.l1, params.ang1);
+  const c2 = makeConeSys(params.r2, params.l2, params.ang2);
+
+  return {
+    update(st) {
+      c1.update(st.t1, st.op1, st.a1);
+      c2.update(st.t2, st.op2, st.a2);
+    },
+  };
+}
+
+// ------------------------------------------------------------
+// ビルダー: 円柱の展開 (転がして開く)
+// ------------------------------------------------------------
+
+
+/* ===== src/units/geometry-solid/builders/unfold.js ===== */
+// ==== ビルダー: unfold ====
+function buildUnfold(scene, params) {
+  const UF = params.uf;
+  const T = UF.T;
+
+  makeGrid(scene, 26, 13, UF.center[0], UF.center[2]);
+  const edgeMat = new THREE.LineBasicMaterial({ color: COL.edge });
+
+  const fixedTri = [T[params.fixed[0]], T[params.fixed[1]], T[params.fixed[2]]];
+  scene.add(new THREE.Mesh(polysToGeometry([fixedTri]), solidMat(COL.solid2)));
+  scene.add(new THREE.LineSegments(polysToEdges([fixedTri]), edgeMat));
+
+  const movers = UF.moving.map((m) => {
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.Float32BufferAttribute(new Float32Array(9), 3));
+    const mesh = new THREE.Mesh(geo, solidMat(COL.solid));
+    const lineGeo = new THREE.BufferGeometry();
+    lineGeo.setAttribute("position", new THREE.Float32BufferAttribute(new Float32Array(12), 3));
+    const line = new THREE.Line(lineGeo, edgeMat);
+    scene.add(mesh, line);
+    const label = makeLabel(params.apexName, { color: "#b03a30", world: 1.15 });
+    scene.add(label);
+    return { m, mesh, line, label };
+  });
+
+  params.fixed.forEach((name) => {
+    const lb = makeLabel(name, { color: "#24354d", world: 1.15 });
+    const p = T[name];
+    lb.position.set(p[0], p[1] + 0.55, p[2]);
+    scene.add(lb);
+  });
+
+  const sc = UF.squareCorners;
+  const ghostPts = [...sc, sc[0]].map((p) => new THREE.Vector3(p[0], 0.03, p[2]));
+  const ghostMat = new THREE.LineDashedMaterial({ color: COL.red, dashSize: 0.42, gapSize: 0.26, transparent: true, opacity: 0 });
+  const ghost = new THREE.Line(new THREE.BufferGeometry().setFromPoints(ghostPts), ghostMat);
+  ghost.computeLineDistances();
+  scene.add(ghost);
+
+  const scratch = new THREE.Vector3();
+
+  return {
+    update(st) {
+      for (const mv of movers) {
+        const { a, b, p0, axis, alpha } = mv.m;
+        const p = rotAxis(p0, a, axis, alpha * st.t);
+        const pa = mv.mesh.geometry.attributes.position;
+        pa.setXYZ(0, ...a); pa.setXYZ(1, ...b); pa.setXYZ(2, ...p);
+        pa.needsUpdate = true;
+        mv.mesh.geometry.computeVertexNormals();
+        const la = mv.line.geometry.attributes.position;
+        la.setXYZ(0, ...a); la.setXYZ(1, ...b); la.setXYZ(2, ...p); la.setXYZ(3, ...a);
+        la.needsUpdate = true;
+        scratch.set(p[0], p[1] + 0.55, p[2]);
+        mv.label.position.copy(scratch);
+        mv.label.material.opacity = st.pLabels;
+      }
+      ghostMat.opacity = st.ghost;
+    },
+  };
+}
+
+// ------------------------------------------------------------
+// ビルダー④: 円すいの展開 (側面→扇形 / 底面は弧に接する)
+// ------------------------------------------------------------
+
+
+/* ===== src/units/geometry-solid/builders/water.js ===== */
+// ==== ビルダー: water ====
+function buildWater(scene, params) {
+  const { W, D, H, waterVol, baseArea, wSide, wCount, wAreaSum } = params;
+
+  makeGrid(scene, 46, 14, 0, 0);
+
+  const boxGeo = new THREE.BoxGeometry(W, H, D);
+  const glass = new THREE.Mesh(
+    boxGeo,
+    new THREE.MeshLambertMaterial({ color: COL.glass, transparent: true, opacity: 0.14, side: THREE.BackSide, depthWrite: false })
+  );
+  glass.position.y = H / 2;
+  scene.add(glass);
+  const boxEdges = new THREE.LineSegments(new THREE.EdgesGeometry(boxGeo), new THREE.LineBasicMaterial({ color: 0x40506a }));
+  boxEdges.position.y = H / 2;
+  scene.add(boxEdges);
+
+  const water = new THREE.Mesh(
+    new THREE.BoxGeometry(W - 0.3, 1, D - 0.3),
+    new THREE.MeshLambertMaterial({ color: COL.water, transparent: true, opacity: 0.5, depthWrite: false })
+  );
+  scene.add(water);
+
+  const weights = [];
+  for (let i = 0; i < wCount; i++) {
+    const g = new THREE.Group();
+    const body = new THREE.Mesh(
+      new THREE.BoxGeometry(wSide - 0.4, wSide, wSide - 0.4),
+      new THREE.MeshStandardMaterial({ color: 0x8a93a6, roughness: 0.6, metalness: 0.15, transparent: true, opacity: 0 })
+    );
+    const edge = new THREE.LineSegments(
+      new THREE.EdgesGeometry(body.geometry),
+      new THREE.LineBasicMaterial({ color: 0x3a4356, transparent: true, opacity: 0 })
+    );
+    g.add(body, edge);
+    g.position.x = (i - (wCount - 1) / 2) * wSide;
+    scene.add(g);
+    weights.push({ g, body, edge });
+  }
+
+  const tl = wSide;
+  const ringPts = [
+    new THREE.Vector3(-W/2-0.3, tl, -D/2-0.3), new THREE.Vector3(W/2+0.3, tl, -D/2-0.3),
+    new THREE.Vector3(W/2+0.3, tl, D/2+0.3), new THREE.Vector3(-W/2-0.3, tl, D/2+0.3),
+    new THREE.Vector3(-W/2-0.3, tl, -D/2-0.3),
+  ];
+  const tenMat = new THREE.LineDashedMaterial({ color: COL.red, dashSize: 0.55, gapSize: 0.35, transparent: true, opacity: 0 });
+  const tenLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints(ringPts), tenMat);
+  tenLine.computeLineDistances();
+  scene.add(tenLine);
+  const tenLabel = makeLabel("おもりの高さ 10cm", { color: "#b03a30", world: 1.15 });
+  tenLabel.position.set(W/2 + 4.6, tl, D/2);
+  tenLabel.material.opacity = 0;
+  scene.add(tenLabel);
+
+  const wl = makeLabel("水面 0.0cm", { color: "#1d5c94", world: 1.25 });
+  wl.position.set(W/2 + 3.6, 1, D/2 + 0.5);
+  scene.add(wl);
+
+  return {
+    update(st) {
+      const L = solveWaterLevel(baseArea, waterVol, st.weightY, wAreaSum * st.wVis, wSide);
+      water.scale.y = Math.max(L, 0.02);
+      water.position.y = L / 2;
+      for (const w of weights) {
+        w.g.position.y = st.weightY + wSide / 2;
+        w.body.material.opacity = st.wVis;
+        w.edge.material.opacity = st.wVis;
+        w.g.visible = st.wVis > 0.02;
+      }
+      setLabelText(wl, `水面 ${L.toFixed(1)}cm`);
+      wl.position.y = L + 0.55;
+      tenMat.opacity = st.tenLine;
+      tenLabel.material.opacity = st.tenLine;
+    },
+  };
+}
+
+// ------------------------------------------------------------
+// ビルダー⑥: 仕切りのある容器
+// ------------------------------------------------------------
+
+
+/* ===== src/units/geometry-solid/builders/water2.js ===== */
+// ==== ビルダー: water2 ====
+function buildWater2(scene, params) {
+  const { wA, wB, D, H } = params; // 幅6+9, 奥行10, 高さ15
+  const Wt = wA + wB;
+  const x0 = -Wt / 2;              // 左端
+  const xd = x0 + wA;              // 仕切り位置
+
+  makeGrid(scene, 46, 14, 0, 0);
+
+  const boxGeo = new THREE.BoxGeometry(Wt, H, D);
+  const glass = new THREE.Mesh(
+    boxGeo,
+    new THREE.MeshLambertMaterial({ color: COL.glass, transparent: true, opacity: 0.14, side: THREE.BackSide, depthWrite: false })
+  );
+  glass.position.y = H / 2;
+  scene.add(glass);
+  const boxEdges = new THREE.LineSegments(new THREE.EdgesGeometry(boxGeo), new THREE.LineBasicMaterial({ color: 0x40506a }));
+  boxEdges.position.y = H / 2;
+  scene.add(boxEdges);
+
+  // 仕切り板
+  const divider = new THREE.Group();
+  const divBody = new THREE.Mesh(
+    new THREE.BoxGeometry(0.24, H, D - 0.2),
+    new THREE.MeshStandardMaterial({ color: 0x9aa5b5, roughness: 0.7, transparent: true, opacity: 0.9 })
+  );
+  divider.add(divBody);
+  divider.add(new THREE.LineSegments(new THREE.EdgesGeometry(divBody.geometry), new THREE.LineBasicMaterial({ color: 0x3a4356 })));
+  divider.position.set(xd, H / 2, 0);
+  scene.add(divider);
+
+  // 水 (左右)
+  const waterMatL = new THREE.MeshLambertMaterial({ color: COL.water, transparent: true, opacity: 0.5, depthWrite: false });
+  const waterL = new THREE.Mesh(new THREE.BoxGeometry(wA - 0.35, 1, D - 0.3), waterMatL);
+  const waterR = new THREE.Mesh(new THREE.BoxGeometry(wB - 0.35, 1, D - 0.3), waterMatL.clone());
+  scene.add(waterL, waterR);
+
+  const wlab = makeLabel("水面 0.0cm", { color: "#1d5c94", world: 1.25 });
+  wlab.position.set(Wt/2 + 3.4, 1, D/2 + 0.5);
+  scene.add(wlab);
+
+  return {
+    update(st) {
+      waterL.scale.y = Math.max(st.levelA, 0.02);
+      waterL.position.set(x0 + wA / 2 - 0.06, st.levelA / 2, 0);
+      waterR.scale.y = Math.max(st.levelB, 0.02);
+      waterR.position.set(xd + wB / 2 + 0.06, st.levelB / 2, 0);
+      divider.position.y = H / 2 + st.dividerY;
+      setLabelText(wlab, `水面 ${st.levelB.toFixed(1)}cm`);
+      wlab.position.y = st.levelB + 0.55;
+    },
+  };
+}
+
+// ------------------------------------------------------------
+// 共通小物: 面倒し用クアッド / グループ透明度
+// ------------------------------------------------------------
+
+
+/* ===== src/units/geometry-solid/scenarios.js ===== */
+// ==== 単元: 立体図形(3D / Three.js) ====
+// 各シナリオは registry で unit:"solid", render:"three" を一括付与される。
+function makeSolidScenarios() {
+  const tetVerts = { P: [0,0,0], Q: [3,0,0], R: [0,3,0], O: [0,0,6] };
+  const uf = computeUnfold(tetVerts, ["O","Q","R"], [
+    { hinge: ["O","Q"], apex: "P" },
+    { hinge: ["Q","R"], apex: "P" },
+    { hinge: ["R","O"], apex: "P" },
+  ]);
+  {
+    const corners = [uf.T["O"], ...uf.flat];
+    const c = corners.reduce((s,p)=>vAdd(s,p),[0,0,0]).map((x)=>x/4);
+    uf.squareCorners = corners
+      .map((p) => ({ p, a: Math.atan2(p[2]-c[2], p[0]-c[0]) }))
+      .sort((x,y)=>x.a-y.a).map((o)=>o.p);
+    uf.center = c;
+  }
+  const uc = uf.center;
+  const hexPts = [[6,3,0],[3,6,0],[0,6,3],[0,3,6],[3,0,6],[6,0,3]];
+
+  return [
+    {
+      id: "cut", name: "① 切り口", type: "cut",
+      source: "単元41・42/切り口の形(p.76)",
+      params: { size: 6, hexPts, dotIdx: [0, 2, 4] },
+      base: {
+        camPos: [16, 8.5, 19], camTarget: [3, 2.8, 3],
+        dots: 0, cutDraw: 0, planeOp: 0, sep: 0, aside: 0, lineOp: 1, ring: 0,
+      },
+      steps: [
+        { dur: 1.4, caption: "1辺6cmの立方体を、3つの辺の真ん中の点(中点・赤い点)を通る平面で切断します。切り口はどんな形になるでしょう?", state: { dots: 1 } },
+        { dur: 3.4, caption: "切り口の線を順に引いていきます。線がひとまわりつながったら、それが切り口です。", formula: "ルール① 同じ面にある2点は、まっすぐ結ぶ  /  ルール② 平行な面にできる切り口は、平行になる", state: { cutDraw: 1 } },
+        { dur: 1.6, caption: "3つの中点を通る切断面はこの通り。中点を通って、ななめにまっすぐ切ります。", state: { planeOp: 0.4 } },
+        { dur: 2.2, caption: "平面にそって、2つに切り分けます。", state: { sep: 1.7, planeOp: 0, lineOp: 0, dots: 0 } },
+        { dur: 2.4, caption: "切り口を正面から見ると……正六角形! 6つの辺の中点を通るように切ると、正六角形が現れます。", formula: "覚えておこう:立方体の切り口は 七角形以上はできない/正五角形もできない", state: { aside: 18, ring: 1, camPos: [13.5, 10, 14], camTarget: [3, 3, 3] } },
+      ],
+    },
+    {
+      id: "cutBlocks", name: "② 積み木の切断", type: "cutBlocks",
+      source: "単元41-⑥(p.75)/積み木の切断",
+      params: { unit: 2, spread: 8.5, liftGap: 4.6, layerCounts: [5, 3, 1] },
+      base: {
+        camPos: [16, 8.5, 19], camTarget: [3, 2.8, 3],
+        dots: 0, planeOp: 0, sep: 0, lift: 0, explode: 0, highlight: 0, countOp: 0,
+      },
+      steps: [
+        { dur: 1.4, caption: "小さい立方体を27個積んで作った大きな立方体。赤い3つの頂点を通る平面で切断します。", state: { dots: 1 } },
+        { dur: 1.8, caption: "3つの頂点を通る切断面はこの通り。切り口は正三角形になります。", state: { planeOp: 0.4 } },
+        { dur: 2.4, caption: "切り分けると、角の部分が三角すいの形で切り取られます。さて、切られた小さい立方体は何個あるでしょう?", state: { sep: 2.4, planeOp: 0, dots: 0 } },
+        { dur: 3.2, caption: "段ごとに上下に分けて、真横から見ます。切り口(赤)は 上の段の下側 → まん中の段を上から下までななめに通りぬけ → 下の段の上側 とつながっています。まん中の段は、上の面にも下の面にも切りこみの線が入るのがポイント。", state: { sep: 0.7, lift: 1, highlight: 1, camPos: [28, 9, 16], camTarget: [3, 7.8, 3] } },
+        { dur: 3.0, caption: "今度は段ごとに真上から見て数えます。切られた立方体(赤)は、下の段5個・真ん中の段3個・上の段1個。", formula: "切られた小さい立方体 = 5+3+1 = 9個", state: { sep: 0, lift: 0, explode: 1, countOp: 1, camPos: [11.5, 26, 4.5], camTarget: [11.5, 0, 2.8] } },
+      ],
+    },
+    {
+      id: "unfold", name: "③ 三角すいの展開", type: "unfold",
+      source: "単元40-⑥(p.73)/三角すいの展開図",
+      params: { uf, fixed: ["O","Q","R"], apexName: "P" },
+      base: {
+        camPos: [uc[0] + 9, 7, uc[2] + 11.5], camTarget: [uc[0], 2, uc[2]],
+        t: 0, ghost: 0, pLabels: 1,
+      },
+      steps: [
+        { dur: 1.4, caption: "底面が直角二等辺三角形(3cm・3cm)で、高さが6cmの三角すいO-PQRです。この立体の表面積を求めます。", formula: "体積 = 3×3÷2×6×1/3 = 9cm³" },
+        { dur: 3.6, caption: "ななめの面OQRを床に固定して、残りの3つの面をパタン、パタンと開きます。3つに分かれた頂点Pの行き先に注目!", state: { t: 1, ghost: 0.65 } },
+        { dur: 2.2, caption: "展開図は……1辺6cmの正方形! だから表面積は、面積の公式1回で求められます。", formula: "表面積 = 6×6 = 36cm²", state: { ghost: 0, camPos: [uc[0] + 0.6, 15.5, uc[2] + 0.6], camTarget: [uc[0], 0, uc[2]] } },
+        { dur: 3.2, caption: "逆再生。正方形を折りたたむと、3つのPが1点に集まって、もとの三角すいに戻ります。展開図⇄立体を行き来できるようにしよう。", state: { t: 0, camPos: [uc[0] + 9, 7, uc[2] + 11.5], camTarget: [uc[0], 2, uc[2]] } },
+      ],
+    },
+    {
+      id: "pyramid", name: "④ 四角すいの展開", type: "pyramid",
+      source: "四角すいの展開図と表面積(例: 底面6cm角・高さ4cm)",
+      params: { half: 3, hgt: 4 },
+      base: {
+        camPos: [12, 8, 15], camTarget: [0, 2, 0],
+        t: 0, tri: 0,
+      },
+      steps: [
+        { dur: 1.4, caption: "底面が1辺6cmの正方形、高さが4cmの四角すい。表面積を求めます。" },
+        { dur: 1.8, caption: "側面の三角形の高さは、この赤い直角三角形のななめの辺。「真ん中から辺までの3cm」と「高さ4cm」だから、3・4・5の直角三角形で5cm!", formula: "側面の三角形の高さ = 5cm", state: { tri: 1 } },
+        { dur: 3.6, caption: "底面を残して、4つの三角形をパタパタと開きます。", state: { t: 1, tri: 0, camPos: [10, 14, 13], camTarget: [0, 0, 0] } },
+        { dur: 2.2, caption: "正方形のまわりに三角形が4つ。表面積は底面+三角形×4で計算できます。", formula: "表面積 = 6×6 + (6×5÷2)×4 = 36+60 = 96cm²", state: { camPos: [0.5, 22, 4], camTarget: [0, 0, 0.4] } },
+      ],
+    },
+    {
+      id: "cone", name: "⑤ 円すいの展開", type: "cone",
+      source: "単元42-①(p.77)/円すいの展開図(例: 半径4cm・母線10cm)",
+      params: { r: 4, l: 10 },
+      base: {
+        camPos: [12, 8, 15], camTarget: [0, 3, 0],
+        t: 0, baseOp: 1, netOp: 0, rimHi: 0, netHi: 0, angleOp: 0,
+      },
+      steps: [
+        { dur: 1.4, caption: "底面の半径が4cm、母線(側面のななめの長さ)が10cmの円すい。側面を開いた展開図はどんな形になるでしょう?" },
+        { dur: 3.8, caption: "側面にまっすぐ切り込み(赤い線)を入れて、ペタンと開いていくと……扇形になりました!", state: { t: 1, baseOp: 0, camPos: [14, 14, 18], camTarget: [4, 1, 0] } },
+        { dur: 2.2, caption: "展開図では、底面の円を扇形の弧にくっつけてかきます。弧(赤)の長さは、底面の円周(赤い円)とぴったり同じ長さです。", formula: "扇形の弧の長さ = 半径4cmの円の円周", state: { netOp: 1, rimHi: 1, netHi: 1, camPos: [9, 25, 16], camTarget: [9, 0, 0.5] } },
+        { dur: 2.2, caption: "半径10cmの円の円周のうち、半径4cmの円周の分だけを使うから、中心角は円周の比で決まります。", formula: "中心角 = 360×4/10 = 144度", state: { angleOp: 1, camPos: [9, 29, 5.5], camTarget: [9, 0, 0.5] } },
+      ],
+    },
+    {
+      id: "string", name: "⑥ ひもの最短", type: "string",
+      source: "円すいにかけたひもの最短距離(中心角90度/60度)",
+      params: { r1: 2, l1: 8, ang1: "90°", r2: 2, l2: 12, ang2: "60°" },
+      base: {
+        camPos: [10, 7, 13], camTarget: [0, 2.5, 0],
+        t1: 0, t2: 0, op1: 1, op2: 0, a1: 0, a2: 0,
+      },
+      steps: [
+        { dur: 1.4, caption: "母線8cm・半径2cmの円すい。点Aから側面をぐるっと1周して、また点Aまで、いちばん短くなるようにひも(赤)をかけます。立体のままだと、ひもの形が分かりにくい…" },
+        { dur: 4.0, caption: "側面を開くと……ひもはピンとまっすぐ! 最短の道すじは、展開図の上では直線になります。中心角は90度だから、2本の母線とひもで直角二等辺三角形の形。", formula: "中心角 = 360×2/8 = 90度 → 直角二等辺三角形", state: { t1: 1, a1: 1, camPos: [4.5, 19, 10], camTarget: [4.5, 0, 0] } },
+        { dur: 1.8, caption: "今度は母線12cm・半径2cmの円すい。同じように、点Aから1周して点Aまで最短でひもをかけます。", state: { op1: 0, op2: 1, camPos: [12, 8, 15], camTarget: [0, 3.5, 0] } },
+        { dur: 4.0, caption: "開くと中心角は60度。2本の母線(12cm)とひもで正三角形ができます。正三角形は3辺ぜんぶ同じ長さだから……ひもの長さは母線と同じ!", formula: "中心角 = 360×2/12 = 60度 → ひもの長さ = 12cm", state: { t2: 1, a2: 1, camPos: [6.5, 24, 11], camTarget: [6.5, 0, 0] } },
+      ],
+    },
+    {
+      id: "cylinder", name: "⑦ 円柱の展開", type: "cylinder",
+      source: "円柱の展開図と表面積(例: 半径3cm・高さ8cm)",
+      params: { r: 3, h: 8 },
+      base: {
+        camPos: [22, 11, 14], camTarget: [4, 2, 6],
+        t: 0, netOp: 0,
+      },
+      steps: [
+        { dur: 1.4, caption: "半径3cm・高さ8cmの円柱を、横にたおして置きました。赤い線のところで側面に切り込みを入れて、コロコロ転がして開きます。" },
+        { dur: 4.2, caption: "ちょうど1回転コロコロ……側面がぺったり開いて、長方形になりました!", state: { t: 1, camPos: [24, 13, 10], camTarget: [4, 1, 9.4] } },
+        { dur: 2.2, caption: "長方形のたては円柱の高さ8cm。よこは「1回転分」だから、底面の円周とぴったり同じ長さです。円2枚は長方形の長い辺にくっつきます。", formula: "よこの長さ = 3×2×3.14 = 18.84cm", state: { netOp: 1, camPos: [4, 26, 9.4], camTarget: [4, 0, 9.4] } },
+        { dur: 2.0, caption: "展開図がそろえば表面積が計算できます。", formula: "表面積 = 18.84×8 + 3×3×3.14×2 = 150.72+56.52 = 207.24cm²", state: { camPos: [4, 28, 10.5], camTarget: [4, 0, 9.4] } },
+      ],
+    },
+    {
+      id: "sectorPrism", name: "⑧ 扇形の柱", type: "sectorPrism",
+      source: "底面が扇形の立体の表面積(例: 半径6cm・中心角90度・高さ5cm)",
+      params: { r: 6, h: 5 },
+      base: {
+        camPos: [15, 11, 18], camTarget: [1, 2, -3],
+        topT: 0, bandT: 0, foldOp: 0,
+      },
+      steps: [
+        { dur: 1.4, caption: "底面が「半径6cm・中心角90度の扇形」で、高さが5cmの立体(ケーキのひと切れの形)。表面積を求めます。展開図は「長方形1枚+扇形2枚」になります。" },
+        { dur: 2.8, caption: "上のフタ(扇形)を外して下におろします。これで底面と同じ扇形が2枚そろいました。", formula: "扇形1枚 = 6×6×3.14÷4 = 28.26cm²", state: { topT: 1, camPos: [13, 13, 15], camTarget: [0, 1, -6] } },
+        { dur: 3.8, caption: "まわりを囲む側面は、「直辺6cm → 弧9.42cm → 直辺6cm」がひとつながり。ぺたんと開くと、1本の長い長方形になります(赤い線が折り目)。", formula: "弧の長さ = 6×2×3.14÷4 = 9.42cm", state: { bandT: 1, foldOp: 1, camPos: [2, 20, -3], camTarget: [1, 0, -7] } },
+        { dur: 2.2, caption: "側面の長方形は、よこ=まわりの長さ(6+9.42+6)、たて=高さ5cm。あとは長方形と扇形2枚を合計するだけ。", formula: "表面積 = 28.26×2 + (6+9.42+6)×5 = 56.52+107.1 = 163.62cm²", state: { camPos: [1, 22, -5], camTarget: [1, 0, -7] } },
+      ],
+    },
+    {
+      id: "proj", name: "⑨ 表面積・投影", type: "proj",
+      source: "複合立体の表面積(上下・前後・左右で求める)",
+      params: {},
+      base: {
+        camPos: [14, 8, 16], camTarget: [3, 2, 2],
+        oT: 0, oF: 0, oS: 0,
+      },
+      steps: [
+        { dur: 1.4, caption: "この階段の形をした立体の表面積を、面を1枚ずつ数えずに求めます。コツは「上下・前後・左右」の3方向から見ること。" },
+        { dur: 2.2, caption: "上を向いた面(赤)をぜんぶ集めると、真上から見た形(6×4の長方形)にピッタリはまります。下から見ても同じ形。", formula: "上下 = 6×4 × 2 = 48cm²", state: { oT: 1, camPos: [8, 15, 11], camTarget: [3, 2, 2] } },
+        { dur: 2.2, caption: "前を向いた面(赤)も、前から見た形(6×4)にピッタリ。後ろも同じです。", formula: "前後 = 6×4 × 2 = 48cm²", state: { oT: 0, oF: 1, camPos: [4, 7, 17], camTarget: [3, 2, 2] } },
+        { dur: 2.2, caption: "横から見ると階段の形。左右2つ分です。", formula: "左右 = (4×2+2×2) × 2 = 24cm²", state: { oF: 0, oS: 1, camPos: [17, 7, 7], camTarget: [3, 2, 2] } },
+        { dur: 2.0, caption: "でこぼこがあっても、へこみ(くぼんで向かい合う面)がなければ、3方向の見た目の面積×2で表面積になります。", formula: "表面積 = (24+24+12)×2 = 120cm²", state: { oS: 0, camPos: [14, 8, 16], camTarget: [3, 2, 2] } },
+      ],
+    },
+    {
+      id: "notch", name: "⑩ 表面積・へこみ", type: "notch",
+      source: "へこみのある立体の表面積(向かい合う面のたし忘れ注意)",
+      params: {},
+      base: {
+        camPos: [17, 9, 19], camTarget: [4, 3, 2],
+        inner: 0,
+      },
+      steps: [
+        { dur: 1.4, caption: "両はしにタワーが立った、へこみのある立体。さっきと同じ「3方向×2」で求めてみましょう。" },
+        { dur: 2.2, caption: "真上から8×4、前から28cm²、横から20cm²。3方向×2で160cm²。……でも、これで終わりではありません!", formula: "(32+28+20)×2 = 160cm²", state: { camPos: [12, 13, 17], camTarget: [4, 2.5, 2] } },
+        { dur: 2.6, caption: "へこみの内側で向かい合っている2つの面(赤)は、上下・前後・左右のどこから見てもかくれてしまいます。この2枚を忘れずに足すこと!", formula: "内側の面 = 4×3 × 2枚 = 24cm²", state: { inner: 1, camPos: [4, 11, 10], camTarget: [4, 3, 2] } },
+        { dur: 2.0, caption: "3方向×2に、かくれた内側の面を足して完成。", formula: "表面積 = 160+24 = 184cm²", state: { camPos: [17, 9, 19], camTarget: [4, 3, 2] } },
+      ],
+    },
+    {
+      id: "lathe", name: "⑪ 回転体", type: "lathe",
+      source: "単元40-④(p.72)/回転体の体積",
+      params: {},
+      base: {
+        camPos: [16, 12, 20], camTarget: [0, 8, 0],
+        t: 0,
+      },
+      steps: [
+        { dur: 1.4, caption: "赤い図形(たて9cm・よこ3cmの長方形と、底辺3cm・高さ9cmの直角三角形)を、点線の軸のまわりにぐるっと1回転させます。どんな立体ができる?" },
+        { dur: 4.2, caption: "くるり! 下には円柱、上には円すいができました。回転体は、回した図形を軸のまわりでひとまわしした立体です。", state: { t: 1, camPos: [17, 13, 21], camTarget: [0, 8, 0] } },
+        { dur: 2.2, caption: "体積は、円柱と円すいに分けて計算します。半径はどちらも3cm。", formula: "体積 = 3×3×3.14×9 + 3×3×3.14×9×1/3 = 254.34+84.78 = 339.12cm³", state: { camPos: [14, 10, 18], camTarget: [0, 8, 0] } },
+      ],
+    },
+    {
+      id: "water", name: "⑫ 水位・おもり", type: "water",
+      source: "単元43-③(p.79)/水の深さ",
+      params: { W: 20, D: 12, H: 14, waterVol: 840, baseArea: 240, wSide: 10, wCount: 2, wAreaSum: 200 },
+      base: {
+        camPos: [24, 14.5, 30], camTarget: [0, 7, 0],
+        weightY: 17.5, wVis: 0, tenLine: 0,
+      },
+      steps: [
+        { dur: 1.4, caption: "底面積240cm²の容器に、深さ3.5cmまで水が入っています。", formula: "水の体積 = 240×3.5 = 840cm³" },
+        { dur: 3.4, caption: "1辺10cmの立方体のおもりを2個、静かに沈めます。おもりが水に入った分だけ、水面が押し上げられて上がります。", state: { wVis: 1, weightY: 0, camPos: [23, 14, 29] } },
+        { dur: 1.8, caption: "もし水面がおもりより低いままだとすると、水が入れる底面積は 240−200=40cm²。すると水の深さは840÷40=21cmになって、おもりの高さ10cmを超えてしまいます。", formula: "840÷(240−200) = 21cm > 10cm → おもりは完全に沈む!", state: { tenLine: 1, camPos: [19, 11.5, 27], camTarget: [0, 7, 0] } },
+        { dur: 2.0, caption: "完全に沈むので、おもり2個の体積(2000cm³)がまるごと水を押し上げます。水面はおもりの上まで上がりました。", formula: "水の深さ = 3.5+2000÷240 = 11 5/6 cm", state: { tenLine: 0, camPos: [24, 14, 29], camTarget: [0, 6.8, 0] } },
+      ],
+    },
+    {
+      id: "water2", name: "⑬ 水位・仕切り", type: "water2",
+      source: "単元44-①/仕切りのある容器(例: 60cm²と90cm²)",
+      params: { wA: 6, wB: 9, D: 10, H: 15, hA: 12, hB: 6 },
+      base: {
+        camPos: [20, 13, 27], camTarget: [0, 6.5, 0],
+        levelA: 12, levelB: 6, dividerY: 0,
+      },
+      steps: [
+        { dur: 1.4, caption: "仕切りで2つに分かれた容器。左は底面積60cm²で深さ12cm、右は底面積90cm²で深さ6cm。仕切りを抜くと水面はどうなる?", formula: "水の量の合計 = 60×12+90×6 = 720+540 = 1260cm³" },
+        { dur: 3.4, caption: "仕切りをスッと引き抜くと、水は左右を行き来できるようになって、水面の高さが1つにそろいます。", state: { dividerY: 17, levelA: 8.4, levelB: 8.4 } },
+        { dur: 2.0, caption: "そろった水面の高さは、「水全部の量」÷「底面積の合計」で求められます。", formula: "水の深さ = 1260÷(60+90) = 8.4cm", state: { camPos: [17, 11, 25], camTarget: [0, 6, 0] } },
+      ],
+    },
+    {
+      id: "cubeNetCross", name: "⑭ 立方体の展開図(十字)", type: "cubeNet",
+      source: "立体図形/展開図。例: 1辺6cmの立方体を十字型に開く",
+      params: { size: 6, net: "cross" },
+      base: { camPos: [17, 11, 21], camTarget: [0, 2.5, 2], t: 0 },
+      steps: [
+        { dur: 1.6, caption: "立方体の展開図は、切り開き方によって全部で11種類あります。まずはいちばん有名な形に開いてみましょう。ピンクの面が「ふた」です。" },
+        { dur: 3.6, caption: "底面を残して、4つの横の面をパタン。ふたは前の面にくっついたまま、2段階でたおれていきます。", state: { t: 1, camPos: [14, 16, 20], camTarget: [0, 0, 3] } },
+        { dur: 2.6, caption: "真上から見ると「十字型」。ふた(ピンク)と底(こい色)のように、向かい合っていた面は、展開図では1つ飛ばしの位置に並びます。", formula: "向かい合う面 = 展開図でとなり合わない(1マス飛ばし)", state: { camPos: [0.5, 34, 3.2], camTarget: [0, 0, 3] } },
+        { dur: 3.0, caption: "たたむとちゃんと立方体にもどります。展開図を見たら「どの面とどの面が向かい合うか」を考えるのがコツ。", state: { t: 0, camPos: [17, 11, 21], camTarget: [0, 2.5, 2] } },
+      ],
+    },
+    {
+      id: "cubeNetStairs", name: "⑮ 立方体の展開図(階段)", type: "cubeNet",
+      source: "立体図形/展開図。例: 同じ立方体を階段型に開く",
+      params: { size: 6, net: "stairs" },
+      base: { camPos: [17, 11, 21], camTarget: [0, 2.5, 0], t: 0 },
+      steps: [
+        { dur: 1.6, caption: "同じ立方体でも、切り開く辺を変えると別の展開図になります。今度は面を「数珠つなぎ」にして開いてみます。ピンクの面が「ふた」。" },
+        { dur: 3.6, caption: "面が面を引き連れて、ジグザグにたおれていきます。ふたは3段階の回転で、いちばん遠くまで運ばれます。", state: { t: 1, camPos: [16, 16, 18], camTarget: [3, 0, 0] } },
+        { dur: 2.6, caption: "真上から見ると「階段型」。これも11種類の展開図のうちの1つです。形はちがっても、たためば同じ立方体。", formula: "立方体の展開図は 全部で11種類", state: { camPos: [3.2, 34, 0.5], camTarget: [3, 0, 0] } },
+        { dur: 3.0, caption: "たたんで確認。十字・T字・階段…展開図のパターンに慣れると、「面の位置関係」がすぐに読めるようになります。", state: { t: 0, camPos: [17, 11, 21], camTarget: [0, 2.5, 0] } },
+      ],
+    },
+    {
+      id: "pyramidVolume", name: "⑯ すいの体積はなぜ×1/3", type: "pyramidVolume",
+      source: "立体図形/体積。例: 1辺6cmの立方体を3つのすいに分ける",
+      params: { size: 6 },
+      base: { camPos: [15, 10, 19], camTarget: [0, 2.5, 0], sep: 0 },
+      steps: [
+        { dur: 1.8, caption: "すい(とがった立体)の体積の公式には「×1/3」がつきます。なぜ1/3なのか、1辺6cmの立方体で確かめましょう。", formula: "すいの体積 = 底面積 × 高さ × 1/3 …なぜ?" },
+        { dur: 3.6, caption: "立方体を、1つのかど(左おくの上の頂点)から3方向に切り分けると…まったく同じ形の四角すいが3つ現れます!", state: { sep: 1, camPos: [18, 13, 22], camTarget: [3, 2, 3] } },
+        { dur: 2.8, caption: "3つとも「底面6×6の正方形、高さ6cm、頂点がかどの真上」の合同な四角すい。立方体を3人で山分けした形です。", formula: "すい1つ = 216 ÷ 3 = 72cm³", state: { camPos: [21, 8, 14], camTarget: [3, 2, 3] } },
+        { dur: 3.2, caption: "もとにもどすと、ぴったり立方体。だから四角すいの体積は「立方体(底面積×高さ)の1/3」。これが公式の正体です。", formula: "底面積×高さ×1/3 = 6×6×6×1/3 = 72cm³", state: { sep: 0, camPos: [15, 10, 19], camTarget: [0, 2.5, 0] } },
+      ],
+    },
+  ];
+}
+
+// ------------------------------------------------------------
+// エンジン (状態補間プレイヤー)
+// ------------------------------------------------------------
+
+
+/* ===== src/units/ratio/builders/saltBalance.js ===== */
+// ==== ビルダー(2D): 食塩水のてんびん図 ====
+// 濃さの数直線に、食塩水を「重さのおもり」としてぶら下げ、
+// つり合う支点の位置 = 混ぜてできる濃さ、を見せる。
+//
+// params:
+//   a: { c, w }  食塩水A(濃さ%, 重さg)
+//   b: { c, w }  食塩水B
+//   mix        : 混ぜた濃さ(事前計算して渡す)
+function buildSaltBalance(params) {
+  const A = params.a, B = params.b, mix = params.mix;
+  const cMin = Math.floor(Math.min(A.c, B.c)) - 2;
+  const cMax = Math.ceil(Math.max(A.c, B.c)) + 2;
+
+  return {
+    draw(g, st, screen) {
+      const beamY = st.beamY;
+      const fx = st.fx;
+      const tilt = (st.tilt || 0) * Math.PI / 180;
+
+      // --- 濃さの数直線 ---
+      g.arrow(cMin, 0, cMax + 0.6, 0, { color: C2D.axis, w: 1.5, head: 9 });
+      g.text(cMax + 0.6, 0, "濃さ(%)", { dx: 8, dy: 14, align: "left", size: 11, color: C2D.axis });
+      for (let c = cMin; c <= cMax; c++) {
+        g.line(c, 0, c, 0.12, { color: C2D.axis, w: 1 });
+        g.text(c, -0.38, `${c}`, { size: 11, weight: "normal", color: C2D.axis });
+      }
+      // A,Bの濃さの位置
+      [A, B].forEach((s) => {
+        g.dot(s.c, 0, { color: C2D.ink, rp: 4 });
+        g.text(s.c, -0.95, `${s.c}%`, { size: 13, color: C2D.ink });
+      });
+
+      // --- てんびん(支点を中心に tilt 回転) ---
+      if (st.showBeam > 0.01) {
+        const al = st.showBeam;
+        // 支点(三角形)と、支点位置を数直線へ落とす点線
+        g.poly([[fx, beamY], [fx - 0.28, beamY - 0.55], [fx + 0.28, beamY - 0.55]],
+          { color: C2D.edge, w: 2, fill: C2D.solid2, fillAlpha: al, alpha: al });
+        g.line(fx, beamY - 0.55, fx, 0, { color: C2D.ghost, dash: [4, 4], w: 1, alpha: al });
+
+        // 棒
+        const end = (c) => {
+          const dx = c - fx;
+          return [fx + dx * Math.cos(tilt), beamY + dx * Math.sin(tilt)];
+        };
+        const eA = end(A.c), eB = end(B.c);
+        g.line(eA[0], eA[1], eB[0], eB[1], { color: C2D.edge, w: 4, alpha: al });
+
+        // おもり(重さに比例した水色の箱)をぶら下げる
+        const box = (e, wgt) => {
+          const bw = 0.55 + wgt / 400;
+          const bh = 0.45 + wgt / 700;
+          const topY = e[1] - 0.18;
+          g.line(e[0], e[1], e[0], topY, { color: C2D.edge, w: 1.5, alpha: al });
+          g.poly([[e[0] - bw / 2, topY], [e[0] + bw / 2, topY],
+                  [e[0] + bw / 2, topY - bh], [e[0] - bw / 2, topY - bh]],
+            { color: C2D.edge, w: 2, fill: C2D.waterFill, fillAlpha: al, alpha: al });
+          g.text(e[0], topY - bh / 2, `${wgt}g`, { size: 12, color: C2D.ink, alpha: al });
+        };
+        box(eA, A.w);
+        box(eB, B.w);
+      }
+
+      // 支点の位置 = 答えの濃さ
+      if (st.showFx > 0.01) {
+        g.dot(fx, 0, { color: C2D.red, rp: 5, alpha: st.showFx });
+        g.text(fx, -0.95, st.showAns > 0.5 ? `${mix}%` : "?", { size: 15, color: C2D.red, alpha: st.showFx });
+      }
+
+      // 距離の比(重さの逆比)
+      if (st.showRatio > 0.01) {
+        const ry = beamY + 0.55;
+        const seg = (x0, x1, label) => {
+          g.arrow(x0, ry, x1, ry, { color: C2D.red, w: 2, head: 8, alpha: st.showRatio });
+          g.arrow(x1, ry, x0, ry, { color: C2D.red, w: 2, head: 8, alpha: st.showRatio });
+          g.text((x0 + x1) / 2, ry + 0.42, label, { size: 14, color: C2D.red, alpha: st.showRatio });
+        };
+        seg(A.c, mix, `${mix - A.c}`);
+        seg(mix, B.c, `${B.c - mix}`);
+      }
+    },
+  };
+}
+
+
+/* ===== src/units/ratio/scenarios.js ===== */
+// ==== 単元: 割合と比(2D / Canvas) ====
+// registry で unit:"ratio", render:"canvas2d" を一括付与される。
+function makeRatioScenarios() {
+  // 食塩水: 4%300g + 9%200g → (4×300+9×200)÷500 = 6%
+  const mix = (4 * 300 + 9 * 200) / (300 + 200);
+
+  return [
+    {
+      id: "saltBalance", name: "① 食塩水(てんびん図)", type: "saltBalance",
+      source: "割合と比/食塩水。例: 4%300gと9%200gを混ぜる",
+      params: { a: { c: 4, w: 300 }, b: { c: 9, w: 200 }, mix },
+      base: {
+        view: { ox: -50, oy: 268, scale: 55, yUp: true },
+        beamY: 2.3, fx: 6.5, tilt: 0,
+        showBeam: 0, showFx: 0, showAns: 0, showRatio: 0,
+      },
+      steps: [
+        { dur: 1.6, caption: "4%の食塩水300gと、9%の食塩水200gを混ぜます。何%の食塩水になるでしょう?" },
+        { dur: 2.8, caption: "「てんびん図」で考えます。濃さの数直線の4と9に、食塩水を重さのおもりとしてぶら下げます。ためしに真ん中を支えてみると…300gの側にかたむいてしまいます。", state: { showBeam: 1, tilt: 7 } },
+        { dur: 3.2, caption: "支点を重い300gの側へ少しずらすと、ちょうどつり合いました。このつり合う場所が、混ぜてできる濃さです。", formula: "つり合い: 300 × (6−4) = 200 × (9−6) = 600", state: { fx: mix, tilt: 0, showFx: 1, showAns: 1 } },
+        { dur: 3.2, caption: "支点から4%までの距離は2、9%までの距離は3。距離の比 2:3 は、重さの比 300:200 = 3:2 のちょうど逆(逆比)! 「重いほうの近くでつり合う」のがてんびん図のコツです。", formula: "距離の比 = 重さの逆比 3:2 → 2:3  /  4% + 5 × 2/5 = 6%", state: { showRatio: 1 } },
+      ],
+    },
+  ];
+}
+
+
+/* ===== src/units/speed/builders/passTrain.js ===== */
+// ==== ビルダー(2D): 通過算(列車が橋をわたる) ====
+// 「わたり始め=先頭が橋に入る」「わたり終わり=最後尾が橋を出る」の間に、
+// 列車(の先頭)は 橋の長さ+列車の長さ だけ進むことを見せる。
+//
+// params:
+//   trainLen  : 列車の長さ(m)
+//   bridgeLen : 橋の長さ(m)
+//   v         : 秒速(m)
+//   ans       : 通過にかかる時間(秒) (事前計算)
+function buildPassTrain(params) {
+  const { trainLen, bridgeLen, v, ans } = params;
+
+  return {
+    draw(g, st, screen) {
+      const front = st.front;         // 先頭の位置(m)。橋の入り口=0
+      const sc = st.ms;               // 1m = ワールド何単位
+      const y = 0;                    // 線路の高さ
+      const trainH = 1.35;            // 列車の見た目の高さ(ワールド)
+
+      // --- 線路と橋 ---
+      g.line(-320 * sc, y, (bridgeLen + 420) * sc, y, { color: C2D.ghost, w: 2 });
+      g.line(0, y, bridgeLen * sc, y, { color: C2D.edge, w: 5 });
+      // 橋脚
+      for (let i = 0; i <= 4; i++) {
+        const px = (bridgeLen * i / 4) * sc;
+        g.line(px, y, px, y - 0.55, { color: C2D.edge, w: 2 });
+      }
+      g.text(bridgeLen * sc / 2, y - 1.05, `橋 ${bridgeLen}m`, { size: 13, color: C2D.ink });
+      g.line(0, y - 0.7, 0, y + trainH + 0.9, { color: C2D.ghost, w: 1, dash: [4, 4] });
+      g.line(bridgeLen * sc, y - 0.7, bridgeLen * sc, y + trainH + 0.9, { color: C2D.ghost, w: 1, dash: [4, 4] });
+
+      // --- 列車(先頭front、後方にtrainLen) ---
+      const x1 = front * sc, x0 = (front - trainLen) * sc;
+      g.poly([[x0, y + 0.12], [x1, y + 0.12], [x1, y + 0.12 + trainH], [x0, y + 0.12 + trainH]],
+        { color: C2D.edge, w: 2, fill: C2D.solid2, fillAlpha: 1 });
+      // 先頭・最後尾のマーク
+      g.dot(x1, y + 0.12 + trainH / 2, { color: C2D.red, rp: 5 });
+      g.text((x0 + x1) / 2, y + 0.12 + trainH / 2, `列車 ${trainLen}m`, { size: 12, color: C2D.ink });
+
+      // わたり始めの列車の残像
+      if (st.showGhost > 0.01) {
+        const al = st.showGhost * 0.45;
+        g.poly([[-trainLen * sc, y + 0.12], [0, y + 0.12], [0, y + 0.12 + trainH], [-trainLen * sc, y + 0.12 + trainH]],
+          { color: C2D.ghost, w: 1.5, dash: [5, 4], alpha: al, fill: null });
+      }
+
+      // --- 先頭が進んだ道のり(赤い矢印) ---
+      if (st.showDist > 0.01 && front > 1) {
+        const al = st.showDist, ay = y + trainH + 1.6;
+        g.arrow(0, ay, front * sc, ay, { color: C2D.red, w: 2.5, head: 10, alpha: al });
+        g.line(0, ay - 0.25, 0, ay + 0.25, { color: C2D.red, w: 2, alpha: al });
+        g.text(front * sc / 2, ay + 0.55, st.showAns > 0.5 ? `${bridgeLen}m + ${trainLen}m = ${bridgeLen + trainLen}m` : "先頭が進んだ道のり", { size: 13, color: C2D.red, alpha: al });
+      }
+    },
+  };
+}
+
+
+/* ===== src/units/speed/builders/stream.js ===== */
+// ==== ビルダー(2D): 流水算(川の上り下り) ====
+// 上に川と船、下にダイヤグラム。下りは「静水速+流速」、上りは「静水速−流速」で
+// グラフの傾きが変わることを見せる。
+//
+// params:
+//   dist  : 川の区間の長さ(km)
+//   still : 静水での速さ(km/h)
+//   cur   : 流れの速さ(km/h)
+//   tDown : 下りにかかる時間(h)   tUp: 上りにかかる時間(h) (事前計算)
+function buildStream(params) {
+  const { dist, still, cur, tDown, tUp } = params;
+  const vDown = still + cur, vUp = still - cur;
+  const tAll = tDown + tUp;
+  // 船の位置(0..dist)。t: 0..tAll。下り→上り。
+  const pos = (t) => (t <= tDown ? vDown * t : Math.max(0, dist - vUp * (t - tDown)));
+
+  return {
+    draw(g, st, screen) {
+      const t = st.t * tAll;
+      const riverY = st.riverY;           // 川の帯の下端
+      const xs = st.xScale;               // グラフ: 1h = ワールド何単位
+      const ds = st.dScale;               // グラフ: 1km = ワールド何単位
+
+      // --- 川(上・横帯)。A(上流,左)→B(下流,右) ---
+      g.poly([[0, riverY], [dist * st.rs, riverY], [dist * st.rs, riverY + 1.2], [0, riverY + 1.2]],
+        { color: null, fill: C2D.waterFill, fillAlpha: 0.55 });
+      g.text(0, riverY + 1.8, "A(上流)", { align: "left", dx: -10, size: 12, color: C2D.ink });
+      g.text(dist * st.rs, riverY + 1.8, "B(下流)", { align: "right", dx: 10, size: 12, color: C2D.ink });
+      // 流れの矢印(左→右)
+      for (let i = 0; i < 3; i++) {
+        const ax = dist * st.rs * (0.18 + 0.3 * i);
+        g.arrow(ax, riverY + 0.6, ax + 1.2, riverY + 0.6, { color: C2D.water, w: 2, head: 7 });
+      }
+      g.text(dist * st.rs * 0.5, riverY - 0.45, `流れ 時速${cur}km`, { size: 11, color: C2D.water });
+
+      // 船(丸)と向き
+      const bx = pos(t) * st.rs;
+      const goingDown = t <= tDown;
+      g.dot(bx, riverY + 0.6, { color: C2D.red, rp: 8, ring: true });
+      g.badge(bx, riverY + 0.6, "船", { dy: -24, bg: C2D.red });
+
+      // 速さの合成(矢印の足し算/引き算)
+      if (st.showArrows > 0.01) {
+        const al = st.showArrows, ay = riverY + 2.4;
+        const u = 0.28; // 1km/h = 0.28ワールド
+        g.text(0, ay + 0.85, goingDown ? "下り = 静水の速さ + 流れ" : "上り = 静水の速さ − 流れ", { align: "left", dx: -10, size: 13, color: C2D.ink, alpha: al });
+        // 静水の速さ(黒)
+        g.arrow(0, ay, still * u * (goingDown ? 1 : -1) + 0, ay, { color: C2D.ink, w: 3, head: 9, alpha: al });
+        // 流れ(青): 下りは同じ向き、上りは逆向き
+        const fx0 = still * u * (goingDown ? 1 : -1);
+        g.arrow(fx0, ay, fx0 + cur * u, ay, { color: C2D.water, w: 3, head: 9, alpha: al });
+        g.text((goingDown ? (still + cur) : -(still - cur)) * u / 2, ay - 0.55,
+          goingDown ? `${still}+${cur}=${vDown}km/h` : `${still}−${cur}=${vUp}km/h`,
+          { size: 12, color: C2D.red, alpha: al });
+      }
+
+      // --- ダイヤグラム(下): 横=時間 / 縦=距離(Aから) ---
+      if (st.showGraph > 0.01) {
+        const al = st.showGraph, gy = st.graphY;
+        g.arrow(0, gy, tAll * xs + 0.7, gy, { color: C2D.axis, w: 1.5, head: 9, alpha: al });
+        g.arrow(0, gy, 0, gy + dist * ds + 0.8, { color: C2D.axis, w: 1.5, head: 9, alpha: al });
+        g.text(tAll * xs + 0.7, gy, "時間", { dx: 6, dy: 12, align: "left", size: 11, color: C2D.axis, alpha: al });
+        g.text(0, gy + dist * ds + 0.8, "距離", { dy: -10, size: 11, color: C2D.axis, alpha: al });
+        for (let hh = 1; hh <= tAll + 1e-9; hh++) {
+          g.line(hh * xs, gy, hh * xs, gy + 0.12, { color: C2D.axis, w: 1, alpha: al });
+          g.text(hh * xs, gy - 0.5, `${hh}`, { size: 10, weight: "normal", color: C2D.axis, alpha: al });
+        }
+        g.line(0, gy + dist * ds, tAll * xs, gy + dist * ds, { color: C2D.grid, w: 1, dash: [4, 4], alpha: al });
+        g.text(-0.25, gy + dist * ds, "B", { align: "right", size: 11, weight: "normal", color: C2D.axis, alpha: al });
+        // 折れ線(0..t)
+        const NS = 80, pts = [];
+        for (let i = 0; i <= NS; i++) {
+          const tt = (i / NS) * t;
+          pts.push([tt * xs, gy + pos(tt) * ds]);
+        }
+        g.path(pts, { color: C2D.red, w: 2.5, alpha: al });
+        g.dot(t * xs, gy + pos(t) * ds, { color: C2D.red, rp: 5, alpha: al });
+      }
+    },
+  };
+}
+
+
+/* ===== src/units/speed/builders/travel.js ===== */
+// ==== ビルダー(2D): 旅人算のダイヤグラム ====
+// 上に「道(横一直線)」を置いて2人を動かし、下に距離-時間グラフを同時に描く。
+// 状態 st.t(0→1)を「時刻の進み」に対応させ、出会い/追いつきの瞬間を可視化する。
+//
+// params:
+//   dist    : 2地点間の距離(km)
+//   tMax    : グラフに描く最大時間(時間)
+//   a: { name, x0, v }  A(位置x0から速さv)   v>0 で右へ
+//   b: { name, x0, v }  B
+//   meetT   : 出会い/追いつきの時刻(事前計算して渡す。null可)
+function buildTravel(params) {
+  const { dist, tMax } = params;
+  const A = params.a, B = params.b;
+  const posA = (t) => A.x0 + A.v * t;
+  const posB = (t) => B.x0 + B.v * t;
+
+  // レイアウト(ワールド座標): 道は y=roadY の横線、グラフは左下原点
+  // ワールドx = 距離(km), ワールドy: 道の表示帯は上、グラフは時間軸(縦)…
+  // 2Dは1つのビューに収めるため、道とグラフを別々のワールド領域に配置する。
+  // 道:   x∈[0,dist], y = roadY(固定)
+  // グラフ:原点(gx0,gy0)、横=距離(x, 0..dist)、縦=時間(t, 0..tMax) を上向きに
+  return {
+    draw(g, st, screen) {
+      const t = st.t * tMax;                 // 現在時刻
+      const roadY = st.roadY;
+      const gx0 = 0, gy0 = st.graphBase;     // グラフ原点(距離0・時刻0)
+      const tScale = st.tScale;              // 時間1 = 距離いくつ分の高さ
+
+      // --- 道(上) ---
+      g.line(0, roadY, dist, roadY, { color: C2D.edge, w: 3 });
+      g.text(0, roadY, "P", { dy: -18, color: C2D.ink });
+      g.text(dist, roadY, "Q", { dy: -18, color: C2D.ink });
+      for (let k = 0; k <= dist; k += st.tick || dist) {
+        g.line(k, roadY, k, roadY, {});
+      }
+
+      // 動く2人(道の上)
+      const ax = Math.max(0, Math.min(dist, posA(t)));
+      const bx = Math.max(0, Math.min(dist, posB(t)));
+      g.dot(ax, roadY, { color: C2D.red, rp: 7, ring: true });
+      g.badge(ax, roadY, A.name, { dy: 22, bg: C2D.red });
+      g.dot(bx, roadY, { color: C2D.blue, rp: 7, ring: true });
+      g.badge(bx, roadY, B.name, { dy: -26, bg: C2D.blue });
+
+      // --- グラフ(下): 横軸=距離 / 縦軸=時間 ---
+      const gyTop = gy0 + tMax * tScale;
+      // 軸
+      g.arrow(gx0, gy0, dist + 0.6, gy0, { color: C2D.axis, w: 1.5, head: 9 });      // 距離軸(右)
+      g.arrow(gx0, gy0, gx0, gyTop + 0.6, { color: C2D.axis, w: 1.5, head: 9 });     // 時間軸(上)…yUp=falseなので下で加算=画面下方向。座標系はyUp想定でtScale負で調整
+      g.text(dist + 0.6, gy0, "距離", { dx: 6, align: "left", color: C2D.axis, size: 12 });
+      g.text(gx0, gyTop + 0.6, "時間", { dy: -10, color: C2D.axis, size: 12 });
+      // 目盛り
+      for (let k = 0; k <= dist; k += st.gridX || 1) {
+        g.line(k, gy0, k, gy0 + 0.12, { color: C2D.axis, w: 1 });
+      }
+      for (let h = 0; h <= tMax + 1e-9; h += st.gridT || 1) {
+        const yy = gy0 + h * tScale;
+        g.line(gx0, yy, gx0 - 0.12, yy, { color: C2D.axis, w: 1 });
+        g.text(gx0 - 0.2, yy, `${h}`, { align: "right", size: 11, weight: "normal", color: C2D.axis });
+      }
+
+      // A,Bの線(時刻0..t まで描く = 進むほど伸びる)
+      const gp = (who, tt) => {
+        const x = Math.max(0, Math.min(dist, who === "a" ? posA(tt) : posB(tt)));
+        return [x, gy0 + tt * tScale];
+      };
+      const drawGraphLine = (who, color) => {
+        const pts = [];
+        const NS = 40;
+        for (let i = 0; i <= NS; i++) pts.push(gp(who, (i / NS) * t));
+        g.path(pts, { color, w: 2.5 });
+      };
+      if (st.showGraph > 0.01) {
+        ctxAlpha(g, st.showGraph, () => {
+          drawGraphLine("a", C2D.red);
+          drawGraphLine("b", C2D.blue);
+        });
+      }
+
+      // 出会い/追いつきの点
+      if (params.meetT != null && st.showMeet > 0.01 && t >= params.meetT - 1e-9) {
+        const mx = posA(params.meetT);
+        // 道の上
+        g.dot(mx, roadY, { color: C2D.ink, rp: 6, alpha: st.showMeet });
+        // グラフの交点
+        const my = gy0 + params.meetT * tScale;
+        g.dot(mx, my, { color: C2D.ink, rp: 6, alpha: st.showMeet });
+        g.line(mx, gy0, mx, my, { color: C2D.ghost, dash: [4, 4], w: 1, alpha: st.showMeet });
+        g.line(gx0, my, mx, my, { color: C2D.ghost, dash: [4, 4], w: 1, alpha: st.showMeet });
+        g.text(mx, my, st.meetLabel || "出会い", { dy: -14, color: C2D.ink, size: 13, alpha: st.showMeet });
+      }
+    },
+  };
+}
+
+// 透明度をまとめてかけるヘルパー(G はステートレスなので簡易に)
+function ctxAlpha(g, a, fn) { fn(); }
+
+
+/* ===== src/units/speed/builders/travelRound.js ===== */
+// ==== ビルダー(2D): 往復のダイヤグラム ====
+// 縦=距離(PからQ)、横=時間。2人がPQ間を往復し、折れ線(山型)の交点が出会い。
+// 左に縦の「道」を置いて2人を動かし、右のダイヤグラムと連動させる。
+//
+// params:
+//   dist  : PQ間の距離(km)
+//   tMax  : 描く最大時間(h)
+//   a: { name, v, from } from:"P"ならPから、"Q"ならQから出発して往復
+//   b: { name, v, from }
+//   meets : [{ t, d, label }] 出会いの時刻と位置(事前計算して渡す)
+function buildTravelRound(params) {
+  const { dist, tMax } = params;
+  // 往復の位置(三角波)。from"P": 0→dist→0→…, from"Q": dist→0→dist→…
+  function pos(who, t) {
+    const period = 2 * dist / who.v;
+    let u = t % period;
+    if (u < 0) u += period;
+    const x = u < period / 2 ? who.v * u : 2 * dist - who.v * u;
+    return who.from === "Q" ? dist - x : x;
+  }
+
+  return {
+    draw(g, st, screen) {
+      const t = st.t * tMax;
+      const xs = st.xScale;      // 時間1h = ワールド何単位
+      const roadX = -1.6;        // 縦の道のx位置
+      const A = params.a, B = params.b;
+
+      // --- 道(左・縦) ---
+      g.line(roadX, 0, roadX, dist, { color: C2D.edge, w: 3 });
+      g.text(roadX, 0, "P", { dx: -16, color: C2D.ink });
+      g.text(roadX, dist, "Q", { dx: -16, color: C2D.ink });
+      const ay = pos(A, t), by = pos(B, t);
+      g.dot(roadX, ay, { color: C2D.red, rp: 7, ring: true });
+      g.badge(roadX, ay, A.name, { dx: -28, bg: C2D.red });
+      g.dot(roadX, by, { color: C2D.blue, rp: 7, ring: true });
+      g.badge(roadX, by, B.name, { dx: 28, bg: C2D.blue });
+
+      // --- ダイヤグラム(横=時間・縦=距離) ---
+      g.arrow(0, 0, tMax * xs + 0.8, 0, { color: C2D.axis, w: 1.5, head: 9 });
+      g.arrow(0, 0, 0, dist + 1.2, { color: C2D.axis, w: 1.5, head: 9 });
+      g.text(tMax * xs + 0.8, 0, "時間", { dx: 6, dy: 12, align: "left", size: 11, color: C2D.axis });
+      g.text(0, dist + 1.2, "距離", { dy: -10, size: 11, color: C2D.axis });
+      for (let h = 1; h <= tMax + 1e-9; h++) {
+        g.line(h * xs, 0, h * xs, 0.18, { color: C2D.axis, w: 1 });
+        g.text(h * xs, -0.7, `${h}`, { size: 11, weight: "normal", color: C2D.axis });
+      }
+      [0, dist].forEach((d) => {
+        g.line(0, d, -0.15, d, { color: C2D.axis, w: 1 });
+        g.text(-0.3, d, d === 0 ? "P" : "Q", { align: "right", size: 12, weight: "normal", color: C2D.axis });
+      });
+      g.line(0, dist, tMax * xs, dist, { color: C2D.grid, w: 1, dash: [4, 4] });
+
+      // 2人の折れ線(0..t)
+      if (st.showGraph > 0.01) {
+        const NS = 120;
+        const mk = (who) => {
+          const pts = [];
+          for (let i = 0; i <= NS; i++) {
+            const tt = (i / NS) * t;
+            pts.push([tt * xs, pos(who, tt)]);
+          }
+          return pts;
+        };
+        g.path(mk(A), { color: C2D.red, w: 2.5, alpha: st.showGraph });
+        g.path(mk(B), { color: C2D.blue, w: 2.5, alpha: st.showGraph });
+      }
+
+      // 出会いの点
+      (params.meets || []).forEach((m, i) => {
+        const show = st[`showMeet${i + 1}`] || 0;
+        if (show < 0.01 || t < m.t - 1e-9) return;
+        g.dot(m.t * xs, m.d, { color: C2D.ink, rp: 6, alpha: show });
+        g.line(m.t * xs, 0, m.t * xs, m.d, { color: C2D.ghost, dash: [4, 4], w: 1, alpha: show });
+        g.line(0, m.d, m.t * xs, m.d, { color: C2D.ghost, dash: [4, 4], w: 1, alpha: show });
+        g.text(m.t * xs, m.d, m.label, { dy: -14, size: 13, color: C2D.ink, alpha: show });
+        g.dot(roadX, m.d, { color: C2D.ink, rp: 5, alpha: show * 0.7 });
+      });
+    },
+  };
+}
+
+
+/* ===== src/units/speed/scenarios.js ===== */
+// ==== 単元: 速さ(2D / Canvas) ====
+// registry で unit:"speed", render:"canvas2d" を一括付与される。
+function makeSpeedScenarios() {
+  // 出会い算: P(0)から4km/h、Q(12)から-6km/h(左へ)。出会い t=12/10=1.2h
+  const meet1 = 12 / (4 + 6);
+  // 追いつき算: 兄A 6km/h が 弟B 4km/h(先に2km地点)を追う。相対2km/h、差2km → 1h
+  const meet2 = 2 / (6 - 4);
+  // 往復: PQ=12km、A(6km/h,Pから)とB(4km/h,Qから)が往復。
+  // 1回目=12÷10=1.2h(7.2km地点)。2回目=2人合わせて12×3km進んだとき=36÷10=3.6h(2.4km地点)
+  const r1t = 12 / (6 + 4), r1d = 6 * r1t;
+  const r2t = (12 * 3) / (6 + 4), r2d = 2 * 12 - 6 * r2t;
+
+  const baseView = { ox: 70, oy: 40, scale: 34, yUp: false };
+
+  return [
+    {
+      id: "meet", name: "① 出会い算", type: "travel",
+      source: "速さ/旅人算(出会い)。例: 12km・4km/hと6km/h",
+      params: {
+        dist: 12, tMax: 2,
+        a: { name: "A", x0: 0, v: 4 },
+        b: { name: "B", x0: 12, v: -6 },
+        meetT: meet1,
+      },
+      base: {
+        view: baseView,
+        t: 0, roadY: 1.0, graphBase: 3.0, tScale: 3.4,
+        gridX: 2, gridT: 0.5, tick: 12,
+        showGraph: 1, showMeet: 1, meetLabel: "出会い",
+      },
+      steps: [
+        { dur: 1.4, caption: "PQ間は12km。AさんはPから時速4kmで、BさんはQから時速6kmで、同時に向かい合って出発します。何時間後に出会う?", state: { t: 0, showGraph: 0, showMeet: 0 } },
+        { dur: 4.0, caption: "2人が近づいていきます。下のグラフは、横が「PからのDistance(距離)」、縦が「時間」。2本の線が近づいて、交わったところが出会う瞬間です。", state: { t: meet1 / 2, showGraph: 1 } },
+        { dur: 3.0, caption: "線が交わりました! 2人の間の12kmが、1時間に (4+6)=10km ずつちぢまるから、出会うのは 12÷10 時間後。", formula: "出会う時間 = 12 ÷ (4+6) = 1.2 時間後", state: { t: meet1, showMeet: 1 } },
+        { dur: 2.2, caption: "そのまま進むと2人はすれちがい、線は交わったあと離れていきます。「近づく速さ=速さの和」がポイント。", state: { t: 2 } },
+      ],
+    },
+    {
+      id: "catchup", name: "② 追いつき算", type: "travel",
+      source: "速さ/旅人算(追いつき)。例: 6km/hが4km/hを追う",
+      params: {
+        dist: 12, tMax: 3,
+        a: { name: "兄", x0: 0, v: 6 },
+        b: { name: "弟", x0: 2, v: 4 },
+        meetT: meet2,
+      },
+      base: {
+        view: baseView,
+        t: 0, roadY: 1.0, graphBase: 3.0, tScale: 2.3,
+        gridX: 2, gridT: 0.5, tick: 12,
+        showGraph: 1, showMeet: 1, meetLabel: "追いつく",
+      },
+      steps: [
+        { dur: 1.4, caption: "弟がP地点から2km進んだところに先にいます。そこへ兄が時速6kmで、弟は時速4kmで、同じ向きに進みます。兄が弟に追いつくのは何時間後?", state: { t: 0, showGraph: 0, showMeet: 0 } },
+        { dur: 4.0, caption: "兄(赤)のほうが速いので、だんだん差がちぢまります。グラフでは、下から出た兄の線が、弟の線においつくのが「追いつく」瞬間。", state: { t: meet2 / 2, showGraph: 1 } },
+        { dur: 3.0, caption: "追いつきました! 差の2kmが、1時間に (6−4)=2km ずつちぢまるから、追いつくのは 2÷2 時間後。", formula: "追いつく時間 = 2 ÷ (6−4) = 1 時間後", state: { t: meet2, showMeet: 1 } },
+        { dur: 2.2, caption: "追いついたあとは兄が前に出ます。「追いつく速さ=速さの差」がポイント。出会いは「和」、追いつきは「差」。", state: { t: 2.4 } },
+      ],
+    },
+    {
+      id: "roundTrip", name: "③ 往復と2回目の出会い", type: "travelRound",
+      source: "速さ/旅人算(往復)。例: 12km・6km/hと4km/hが往復",
+      params: {
+        dist: 12, tMax: 4.8,
+        a: { name: "A", v: 6, from: "P" },
+        b: { name: "B", v: 4, from: "Q" },
+        meets: [
+          { t: r1t, d: r1d, label: "1回目" },
+          { t: r2t, d: r2d, label: "2回目" },
+        ],
+      },
+      base: {
+        view: { ox: 100, oy: 285, scale: 21, yUp: true },
+        t: 0, xScale: 3,
+        showGraph: 1, showMeet1: 0, showMeet2: 0,
+      },
+      steps: [
+        { dur: 1.6, caption: "PQ間は12km。AはPから時速6km、BはQから時速4kmで同時に出発し、向こう岸に着いたらすぐ折り返します。2回目に出会うのは何時間後?", state: { t: 0, showGraph: 0 } },
+        { dur: 3.0, caption: "まず1回目の出会い。2人合わせて12km進んだときだから、12÷(6+4)=1.2時間後です。ダイヤグラムでは2本の線の交点。", formula: "1回目 = 12 ÷ (6+4) = 1.2時間後", state: { t: r1t / 4.8, showGraph: 1, showMeet1: 1 } },
+        { dur: 3.0, caption: "すれちがった2人は、そのまま進んで折り返します。Aは2時間でQに、Bは3時間でPに着いて引き返すので、グラフは山型の折れ線になります。", state: { t: 3.2 / 4.8 } },
+        { dur: 3.4, caption: "2回目の出会い! ここまでに2人が進んだ道のりを合わせると、ちょうどPQ3つ分(12×3=36km)。だから1回目の3倍の時刻になります。", formula: "2回目 = (12×3) ÷ (6+4) = 3.6時間後 (1.2時間の3倍!)", state: { t: r2t / 4.8, showMeet2: 1 } },
+        { dur: 2.4, caption: "「出会うたびに、2人の合計は 1本分 → 3本分 → 5本分…」。往復の出会いは、合わせた道のりがPQ何本分かで数えるのがコツです。", state: { t: 1 } },
+      ],
+    },
+    {
+      id: "stream", name: "④ 流水算", type: "stream",
+      source: "速さ/流水算。例: 静水時速8km・流れ時速2km・30km",
+      params: { dist: 30, still: 8, cur: 2, tDown: 30 / (8 + 2), tUp: 30 / (8 - 2) },
+      base: {
+        view: { ox: 90, oy: 312, scale: 22, yUp: true },
+        t: 0, riverY: 10, rs: 0.45, xScale: 1.6, dScale: 0.2, graphY: 0,
+        showArrows: 0, showGraph: 0,
+      },
+      steps: [
+        { dur: 1.8, caption: "静水(流れのない水)なら時速8kmで進む船が、流れの速さ時速2kmの川を、A(上流)からB(下流)まで30km下り、またAまで上ります。それぞれ何時間かかる?" },
+        { dur: 3.4, caption: "下りは、流れが船のせなかを押してくれるので速くなります。黒い矢印(静水の速さ)に青い矢印(流れ)がたし算されて、時速10km。", formula: "下りの速さ = 8 + 2 = 10km/h → 30 ÷ 10 = 3時間", state: { t: 3 / 8, showArrows: 1, showGraph: 1 } },
+        { dur: 4.0, caption: "上りは、流れに逆らうので今度はひき算。時速6kmしか出せず、同じ30kmなのに5時間かかります。グラフの傾きがゆるくなるのに注目!", formula: "上りの速さ = 8 − 2 = 6km/h → 30 ÷ 6 = 5時間", state: { t: 1 } },
+        { dur: 2.8, caption: "逆に、下りと上りの速さが分かれば「静水の速さ=(和)÷2」「流れの速さ=(差)÷2」と和差算でもどせます。流水算はたし算・ひき算の往復です。", formula: "静水 = (10+6)÷2 = 8km/h  /  流れ = (10−6)÷2 = 2km/h" },
+      ],
+    },
+    {
+      id: "passTrain", name: "⑤ 通過算", type: "passTrain",
+      source: "速さ/通過算。例: 長さ200mの列車が600mの橋を秒速20mで",
+      params: { trainLen: 200, bridgeLen: 600, v: 20, ans: (600 + 200) / 20 },
+      base: {
+        view: { ox: 150, oy: 185, scale: 30, yUp: true },
+        front: -120, ms: 0.015,
+        showGhost: 0, showDist: 0, showAns: 0,
+      },
+      steps: [
+        { dur: 1.8, caption: "長さ200mの列車が、秒速20mで長さ600mの橋をわたります。わたり始めてから、わたり終わるまで何秒かかるでしょう?" },
+        { dur: 2.4, caption: "「わたり始め」は、先頭(赤い点)が橋に入った瞬間です。この位置を覚えておきましょう(点線)。", state: { front: 0, showGhost: 1 } },
+        { dur: 4.2, caption: "「わたり終わり」は、最後尾が橋を出た瞬間。先頭はもう橋のむこう200m先まで進んでいます!", state: { front: 800, showDist: 1 } },
+        { dur: 3.0, caption: "先頭が進んだ道のりは「橋の長さ+列車の長さ」。通過算は、列車自身の長さの分だけよけいに走るのがポイントです。", formula: "時間 = (600 + 200) ÷ 20 = 40秒", state: { showAns: 1 } },
+      ],
+    },
+  ];
+}
+
+
+/* ===== src/units/word/builders/turtleCrane.js ===== */
+// ==== ビルダー(2D): つるかめ算の面積図 ====
+// 横=匹数、縦=1匹の足の本数 の長方形で「足の合計=面積」と見る。
+// 全部ツルと仮定した面積に、カメへの交換で足りない分を積み増す。
+//
+// params:
+//   total   : 合計の匹数
+//   legsA   : ツルの足(少ないほう)
+//   legsB   : カメの足(多いほう)
+//   legsSum : 足の合計
+//   ansB    : カメの数(事前計算して渡す)
+function buildTurtleCrane(params) {
+  const { total, legsA, legsB, legsSum, ansB } = params;
+
+  return {
+    draw(g, st, screen) {
+      const k = st.k; // カメに交換した数(0..ansB, 連続)
+
+      // --- 軸 ---
+      g.arrow(0, 0, total + 1.2, 0, { color: C2D.axis, w: 1.5, head: 9 });
+      g.arrow(0, 0, 0, legsB + 1.4, { color: C2D.axis, w: 1.5, head: 9 });
+      g.text(total + 1.2, 0, "匹数", { dx: 6, dy: 14, align: "left", size: 11, color: C2D.axis });
+      g.text(0, legsB + 1.4, "1匹の足", { dy: -10, size: 11, color: C2D.axis });
+      // 目盛り(2本・4本・10匹)
+      [[legsA, `${legsA}本`], [legsB, `${legsB}本`]].forEach(([y, s]) => {
+        g.line(0, y, -0.15, y, { color: C2D.axis, w: 1 });
+        g.text(-0.3, y, s, { align: "right", size: 12, weight: "normal", color: C2D.axis });
+      });
+      g.line(total, 0, total, 0.15, { color: C2D.axis, w: 1 });
+      g.text(total, -0.5, `${total}匹`, { size: 12, weight: "normal", color: C2D.axis });
+
+      // --- 仮定の長方形(全部ツル: total × legsA) ---
+      if (st.showBase > 0.01) {
+        const al = st.showBase;
+        g.poly([[0, 0], [total, 0], [total, legsA], [0, legsA]],
+          { color: C2D.edge, w: 2.5, fill: C2D.solid2, fillAlpha: al, alpha: al });
+        g.text((total - k) / 2, legsA / 2, "ツル", { size: 14, color: C2D.ink, alpha: al });
+      }
+
+      // --- カメに交換した部分(右から k 匹、上に legsB-legsA 積み増し) ---
+      if (k > 0.02) {
+        const x0 = total - k;
+        g.poly([[x0, legsA], [total, legsA], [total, legsB], [x0, legsB]],
+          { color: C2D.red, w: 2.5, fill: C2D.redFill, fillAlpha: 1 });
+        g.line(x0, 0, x0, legsA, { color: C2D.red, w: 2, dash: [4, 4] });
+        g.text(total - k / 2, (legsA + legsB) / 2, "カメ", { size: 14, color: C2D.red });
+      }
+
+      // --- 足の合計(面積)カウンタ ---
+      const legsNow = legsA * total + k * (legsB - legsA);
+      g.text(0, legsB + 2.3, `足の合計 = ${Math.round(legsNow)}本`, {
+        align: "left", dx: -10, size: 16, color: legsNow >= legsSum - 0.01 ? C2D.red : C2D.ink,
+      });
+
+      // --- 目標(実際の合計)の不足分ガイド ---
+      if (st.showGoal > 0.01) {
+        const al = st.showGoal;
+        // 不足分を点線の空箱で見せる(右上)
+        const x0 = total - ansB;
+        g.poly([[x0, legsA], [total, legsA], [total, legsB], [x0, legsB]],
+          { color: C2D.ghost, w: 1.5, dash: [5, 4], alpha: al, fill: null });
+        g.text(total + 0.25, (legsA + legsB) / 2, `あと${legsSum - legsA * total}本`, {
+          align: "left", size: 12, color: C2D.ghost, alpha: al,
+        });
+      }
+
+      // --- 答え ---
+      if (st.showAns > 0.01) {
+        const al = st.showAns;
+        g.badge(total - ansB / 2, -0.55, `カメ ${ansB}匹`, { bg: C2D.red, alpha: al });
+        g.badge((total - ansB) / 2, -0.55, `ツル ${total - ansB}匹`, { bg: C2D.blue, alpha: al });
+      }
+    },
+  };
+}
+
+
+/* ===== src/units/word/scenarios.js ===== */
+// ==== 単元: 文章題(2D / Canvas) ====
+// registry で unit:"word", render:"canvas2d" を一括付与される。
+function makeWordScenarios() {
+  // つるかめ算: ツルとカメ合わせて10匹、足26本 → カメ = (26−2×10)÷(4−2) = 3匹
+  const ansB = (26 - 2 * 10) / (4 - 2);
+
+  return [
+    {
+      id: "turtleCrane", name: "① つるかめ算(面積図)", type: "turtleCrane",
+      source: "文章題/つるかめ算。例: 合わせて10匹・足26本",
+      params: { total: 10, legsA: 2, legsB: 4, legsSum: 26, ansB },
+      base: {
+        view: { ox: 80, oy: 258, scale: 38, yUp: true },
+        k: 0, showBase: 0, showGoal: 0, showAns: 0,
+      },
+      steps: [
+        { dur: 1.6, caption: "ツルとカメが合わせて10匹います。足の数は全部で26本。カメは何匹いるでしょう?" },
+        { dur: 2.6, caption: "「面積図」で考えます。横を匹数、縦を1匹の足の数にすると、長方形の面積が足の合計。まず全部ツルだと仮定すると、足は 2本×10匹=20本 にしかなりません。", formula: "全部ツルなら: 2 × 10 = 20本", state: { showBase: 1 } },
+        { dur: 2.6, caption: "実際は26本だから、6本たりない。この不足分(点線の箱)を、ツルをカメに交換して埋めていきます。1匹交換するごとに足は 4−2=2本 ずつ増えます。", formula: "たりない分: 26 − 20 = 6本  /  1匹交換で +2本", state: { showGoal: 1 } },
+        { dur: 3.4, caption: "右はしから1匹ずつカメに交換…。赤い面積が増えて、ちょうど26本になったところでストップ!", state: { k: ansB, showGoal: 0 } },
+        { dur: 2.8, caption: "交換したのは3匹。つまりカメが3匹、ツルが7匹です。面積図なら「たりない分 ÷ 1匹の差」が目に見えます。", formula: "カメ = (26 − 2×10) ÷ (4 − 2) = 3匹 / ツル = 10 − 3 = 7匹", state: { showAns: 1 } },
+      ],
+    },
+  ];
+}
+
+
+/* ===== src/registry.js ===== */
+// ==== レジストリ: 全単元のシナリオとビルダーを1つに集約 ====
+// 新しい単元を足したら、ここに (1)ビルダーマップ (2)シナリオ登録 (3)単元名 を追記する。
+"use strict";
+
+// 単元の表示名(タブに出る)
+const UNIT_NAMES = {
+  solid: "立体図形",
+  plane: "平面図形",
+  speed: "速さ",
+  ratio: "割合と比",
+  word: "文章題",
+  cases: "場合の数",
+};
+
+// 各単元の定義: id, render(バックエンド), scenarios()（その単元のシナリオ配列を返す）
+const UNITS = [
+  { id: "solid", render: "three",    scenarios: makeSolidScenarios },
+  { id: "plane", render: "canvas2d", scenarios: makePlaneScenarios },
+  { id: "speed", render: "canvas2d", scenarios: makeSpeedScenarios },
+  { id: "ratio", render: "canvas2d", scenarios: makeRatioScenarios },
+  { id: "word",  render: "canvas2d", scenarios: makeWordScenarios },
+  { id: "cases", render: "canvas2d", scenarios: makeCasesScenarios },
+];
+
+// ビルダーマップ: type → build関数。全単元ぶんをここに集める。
+const BUILDERS = {
+  // solid (3D)
+  cut: buildCut, cutBlocks: buildCutBlocks, unfold: buildUnfold, pyramid: buildPyramidNet,
+  cone: buildCone, string: buildString, cylinder: buildCylinder, sectorPrism: buildSectorPrism,
+  proj: buildProj, notch: buildNotch, lathe: buildLathe, water: buildWater, water2: buildWater2,
+  cubeNet: buildCubeNet, pyramidVolume: buildPyramidVolume,
+  // plane (2D)
+  movePoint: buildMovePoint, rolling: buildRolling,
+  // speed (2D)
+  travel: buildTravel, travelRound: buildTravelRound, stream: buildStream, passTrain: buildPassTrain,
+  // ratio (2D)
+  saltBalance: buildSaltBalance,
+  // word (2D)
+  turtleCrane: buildTurtleCrane,
+  // cases (2D)
+  treeDiagram: buildTreeDiagram,
+};
+
+// 全シナリオをフラット化(unit/render を一括付与)
+function buildAllScenarios() {
+  const all = [];
+  for (const u of UNITS) {
+    for (const scn of u.scenarios()) {
+      scn.unit = u.id;
+      scn.render = scn.render || u.render;
+      all.push(scn);
+    }
+  }
+  return all;
+}
+
+const ALL_SCENARIOS = buildAllScenarios();
+
+
+/* ===== src/engine.js ===== */
+// ==== 再生エンジン(バックエンド非依存の状態補間プレイヤー) ====
+// 3D(Three.js)と2D(Canvas)を同じ仕組みで扱う。
+// シナリオは registry.js が全単元ぶん集めて ALL_SCENARIOS / BUILDERS に入れる。
+"use strict";
+
+const App = {
+  scenarios: [],   // フラット化した全シナリオ
+  units: [],       // [{id, name, items:[{scnIndex, name}]}]
+  scnIdx: 0, stepIdx: 0,
+  bctx: null, backend: null,
+  from: null, to: null, cur: null, t: 1, dur: 1.4,
+};
+
+let stageEl, backends;
+
+function mergedState(scn, idx) {
+  const s = deepClone(scn.base);
+  for (let i = 0; i <= idx; i++) assignState(s, scn.steps[i].state || {});
+  return s;
+}
+// view のようなネストオブジェクトも上書きマージ
+function assignState(dst, src) {
+  for (const k in src) {
+    if (src[k] && typeof src[k] === "object" && !Array.isArray(src[k])) {
+      dst[k] = Object.assign(dst[k] && typeof dst[k] === "object" ? { ...dst[k] } : {}, src[k]);
+    } else dst[k] = src[k];
+  }
+  return dst;
+}
+function deepClone(o) {
+  const r = {};
+  for (const k in o) {
+    if (Array.isArray(o[k])) r[k] = o[k].slice();
+    else if (o[k] && typeof o[k] === "object") r[k] = { ...o[k] };
+    else r[k] = o[k];
+  }
+  return r;
+}
+
+function lerpStates(a, b, t) {
+  const out = {};
+  for (const k in b) {
+    const vb = b[k], va = k in a ? a[k] : vb;
+    if (Array.isArray(vb)) out[k] = vb.map((x, i) => (va[i] != null ? va[i] : x) + (x - (va[i] != null ? va[i] : x)) * t);
+    else if (typeof vb === "number") out[k] = (typeof va === "number" ? va : vb) + (vb - (typeof va === "number" ? va : vb)) * t;
+    else if (vb && typeof vb === "object") out[k] = lerpStates(va && typeof va === "object" ? va : vb, vb, t); // view等
+    else out[k] = vb;
+  }
+  return out;
+}
+
+function loadScenario(i) {
+  const scn = App.scenarios[i];
+  const nextBackend = backends[scn.render || "three"];
+  // 別バックエンドに切り替わるなら前のを隠す
+  if (App.backend && App.backend !== nextBackend) App.backend.show(false);
+  if (App.backend) App.backend.dispose(App.bctx);
+  App.backend = nextBackend;
+  App.backend.show(true);
+  App.backend.resize();
+
+  App.scnIdx = i;
+  App.bctx = App.backend.load(scn, BUILDERS);
+  App.cur = null;
+  App.stepIdx = 0;
+  gotoStep(0, 0.01);
+  syncTabs();
+  document.getElementById("src").textContent = scn.source || "";
+}
+
+function gotoStep(idx, dur) {
+  const scn = App.scenarios[App.scnIdx];
+  App.stepIdx = idx;
+  App.to = mergedState(scn, idx);
+  App.from = App.cur ? deepClone(App.cur) : deepClone(App.to);
+  App.t = 0;
+  App.dur = dur ?? scn.steps[idx].dur ?? 1.4;
+  const st = scn.steps[idx];
+  document.getElementById("stepchip").textContent = `手順 ${idx + 1} / ${scn.steps.length}`;
+  document.getElementById("caption").textContent = st.caption;
+  const f = document.getElementById("formula");
+  f.textContent = st.formula || "";
+  f.style.display = st.formula ? "block" : "none";
+  document.getElementById("prev").disabled = idx === 0;
+  document.getElementById("next").disabled = idx === scn.steps.length - 1;
+  document.getElementById("dots").innerHTML =
+    scn.steps.map((_, j) => `<span class="dot${j <= idx ? " on" : ""}"></span>`).join("");
+}
+
+function replayStep() {
+  const scn = App.scenarios[App.scnIdx];
+  const idx = App.stepIdx;
+  App.cur = idx === 0 ? deepClone(scn.base) : mergedState(scn, idx - 1);
+  gotoStep(idx);
+}
+
+// ---- 単元(unit) → 問題(problem) の2階層タブ ----
+function buildUnitIndex() {
+  const map = new Map();
+  App.scenarios.forEach((s, idx) => {
+    const uid = s.unit || "misc";
+    if (!map.has(uid)) map.set(uid, { id: uid, name: UNIT_NAMES[uid] || uid, items: [] });
+    map.get(uid).items.push({ scnIndex: idx, name: s.name });
+  });
+  App.units = [...map.values()];
+}
+
+function currentUnitId() { return App.scenarios[App.scnIdx].unit || "misc"; }
+
+function renderUnitTabs() {
+  const row = document.getElementById("units");
+  row.innerHTML = "";
+  App.units.forEach((u) => {
+    const b = document.createElement("button");
+    b.className = "unit";
+    b.textContent = u.name;
+    b.onclick = () => loadScenario(u.items[0].scnIndex);
+    row.appendChild(b);
+  });
+}
+
+function renderProblemTabs() {
+  const uid = currentUnitId();
+  const unit = App.units.find((u) => u.id === uid);
+  const row = document.getElementById("tabs");
+  row.innerHTML = "";
+  unit.items.forEach((it) => {
+    const b = document.createElement("button");
+    b.className = "tab";
+    b.textContent = it.name;
+    b.onclick = () => loadScenario(it.scnIndex);
+    row.appendChild(b);
+  });
+}
+
+function syncTabs() {
+  const uid = currentUnitId();
+  renderProblemTabs();
+  document.querySelectorAll("#units .unit").forEach((el, i) =>
+    el.classList.toggle("active", App.units[i].id === uid));
+  const unit = App.units.find((u) => u.id === uid);
+  document.querySelectorAll("#tabs .tab").forEach((el, i) =>
+    el.classList.toggle("active", unit.items[i].scnIndex === App.scnIdx));
+}
+
+function init() {
+  stageEl = document.getElementById("stage");
+  backends = {
+    three: makeThreeBackend(stageEl),
+    canvas2d: makeCanvas2DBackend(stageEl),
+  };
+  // 初期は両方非表示(loadScenarioで必要な方をshow)
+  backends.three.show(false);
+  backends.canvas2d.show(false);
+
+  App.scenarios = ALL_SCENARIOS;
+  buildUnitIndex();
+  renderUnitTabs();
+
+  window.addEventListener("resize", () => App.backend && App.backend.resize());
+  document.getElementById("next").onclick = () => {
+    if (App.stepIdx < App.scenarios[App.scnIdx].steps.length - 1) gotoStep(App.stepIdx + 1);
+  };
+  document.getElementById("prev").onclick = () => {
+    if (App.stepIdx > 0) gotoStep(App.stepIdx - 1, 1.0);
+  };
+  document.getElementById("replay").onclick = replayStep;
+  window.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowRight") document.getElementById("next").click();
+    if (e.key === "ArrowLeft") document.getElementById("prev").click();
+  });
+
+  loadScenario(0);
+
+  let last = performance.now();
+  const loop = (now) => {
+    requestAnimationFrame(loop);
+    const dt = Math.min((now - last) / 1000, 0.05);
+    last = now;
+    if (App.t < 1) App.t = Math.min(1, App.t + dt / App.dur);
+    App.cur = lerpStates(App.from, App.to, easeInOut(App.t));
+    App.backend.frame(App.bctx, App.cur);
+  };
+  requestAnimationFrame(loop);
+}
+
+window.addEventListener("DOMContentLoaded", init);
+
+</script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+{
+  "name": "jukuse-math",
+  "version": "1.0.0",
+  "description": "中学受験算数のインタラクティブ教材(3D立体図形 + 2D平面図形・速さ等)。シナリオ=データ / エンジン=状態補間の分離設計。3D=Three.js / 2D=Canvas の2バックエンド。",
+  "private": true,
+  "scripts": {
+    "build": "node scripts/build.js",
+    "test:geometry": "node test/geometry.test.js",
+    "test:runtime": "node test/runtime.test.js",
+    "test": "npm run test:geometry && npm run test:runtime",
+    "check": "node scripts/check-syntax.js",
+    "verify": "npm run check && npm run test && npm run build",
+    "pages": "npm run verify && cp dist/index.html index.html"
+  },
+  "license": "UNLICENSED"
+}
