@@ -99,6 +99,10 @@ hints: {
   - CodeX: v2エンジン(タッチ入力・region判定・ヒント再生・タブレットレイアウト)
   - Claude Code: スキーマ設計レビュー、問題コンテンツ量産、検算テスト、教育的な文言
 - **統合の場**: GitHub(このリポジトリ)。PR単位でやりとりし、verify + 実機確認を通ったら main へ。
+- **定常ループ(ターミナル内で完結)**: ① Claude Code が実装し verify を通す →
+  ② `scripts/codex-review.sh` で CodeX がレビュー+直接修正(観点: 算数の正しさ/規約/配色/タブレット表示/文言) →
+  ③ Claude Code が `git diff` で CodeX の修正を確認し、verify 再実行 → 問題なければ commit & push。
+  CodeX はエンジン(src/engine.js, src/render/)を直接変更しない(提案のみ)ルール。
 
 ## 決定事項(P0・2026-07-14確定)
 
