@@ -64,7 +64,7 @@
   .tab.active { background: var(--navy); color: #fff; }
   #src { font-size: 11.5px; color: #8a99ad; margin-left: auto; white-space: nowrap; }
 
-  #stage { position: relative; flex: 1; min-height: 0; }
+  #stage { position: relative; flex: 1; min-height: 0; touch-action: none; }
   #stage canvas { display: block; }
 
   #deck {
@@ -97,6 +97,37 @@
   #next:hover:not(:disabled) { background: #274b87; }
   #controls button:disabled { opacity: 0.35; cursor: default; }
   #hint { text-align: center; font-size: 11px; color: #97a5b8; margin-top: 7px; }
+
+  /* ---- quizモード(v2: なぞる→段階ヒント) ---- */
+  #quizhint {
+    margin-top: 8px; background: #fff7ee; border-left: 4px solid #e8a13d;
+    border-radius: 0 8px 8px 0; padding: 8px 12px; font-size: 14px; line-height: 1.6;
+    color: #6b4d1f; display: none;
+  }
+  #ansrow { display: none; gap: 8px; margin-top: 10px; align-items: center; }
+  #anslabel { font-size: 13px; font-weight: bold; color: var(--navy); white-space: nowrap; }
+  #answer {
+    flex: 1; min-width: 0; font-family: inherit; font-size: 18px; font-weight: bold;
+    padding: 10px 12px; border: 2px solid var(--navy); border-radius: 9px; color: var(--ink);
+  }
+  #check {
+    flex: none; font-family: inherit; font-size: 15px; font-weight: bold; border-radius: 9px;
+    padding: 11px 18px; cursor: pointer; border: none; background: var(--red); color: #fff;
+  }
+  #check:hover { background: #c23b34; }
+  #quizctl { display: none; gap: 8px; margin-top: 11px; }
+  #quizctl button {
+    font-family: inherit; font-size: 14px; font-weight: bold; border-radius: 9px;
+    padding: 11px 0; cursor: pointer; border: 1.5px solid var(--navy);
+  }
+  #qreset { flex: 1; background: #fff; color: var(--navy); }
+  #qreset:hover { background: #eaf1fa; }
+  #toSteps { flex: 1.6; background: var(--navy); color: #fff; }
+  #toSteps:hover { background: #274b87; }
+  #toQuiz { display: none; width: 100%; margin-top: 8px; font-family: inherit; font-size: 13px;
+    font-weight: bold; border-radius: 9px; padding: 9px 0; cursor: pointer;
+    border: 1.5px dashed var(--navy); background: #fff; color: var(--navy); }
+  #toQuiz:hover { background: #eaf1fa; }
   @media (max-width: 640px) {
     header { padding: 7px 10px; }
     #src { display: none; }
@@ -122,12 +153,25 @@
       <div id="dots"></div>
     </div>
     <div id="caption"></div>
+    <div id="quizhint"></div>
     <div id="formula"></div>
-    <div id="controls">
-      <button id="prev">◀ 前へ</button>
-      <button id="replay">↻ もう一度</button>
-      <button id="next">次へ ▶</button>
+    <div id="ansrow">
+      <span id="anslabel">答え</span>
+      <input id="answer" type="text" inputmode="decimal" autocomplete="off" placeholder="?">
+      <button id="check">答え合わせ</button>
     </div>
+    <div id="controls" style="display:flex" >
+      <div id="stepctl" style="display:flex; gap:8px; flex:1">
+        <button id="prev">◀ 前へ</button>
+        <button id="replay">↻ もう一度</button>
+        <button id="next">次へ ▶</button>
+      </div>
+      <div id="quizctl" style="flex:1">
+        <button id="qreset">↻ 図をもどす</button>
+        <button id="toSteps">▶ 解説を見る</button>
+      </div>
+    </div>
+    <button id="toQuiz">✏️ 問題にもどる(自分で解く)</button>
     <div id="hint">キーボードの ← → でも操作できます</div>
   </div>
 </div>

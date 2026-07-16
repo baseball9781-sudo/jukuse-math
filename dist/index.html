@@ -64,7 +64,7 @@
   .tab.active { background: var(--navy); color: #fff; }
   #src { font-size: 11.5px; color: #8a99ad; margin-left: auto; white-space: nowrap; }
 
-  #stage { position: relative; flex: 1; min-height: 0; }
+  #stage { position: relative; flex: 1; min-height: 0; touch-action: none; }
   #stage canvas { display: block; }
 
   #deck {
@@ -97,6 +97,37 @@
   #next:hover:not(:disabled) { background: #274b87; }
   #controls button:disabled { opacity: 0.35; cursor: default; }
   #hint { text-align: center; font-size: 11px; color: #97a5b8; margin-top: 7px; }
+
+  /* ---- quizモード(v2: なぞる→段階ヒント) ---- */
+  #quizhint {
+    margin-top: 8px; background: #fff7ee; border-left: 4px solid #e8a13d;
+    border-radius: 0 8px 8px 0; padding: 8px 12px; font-size: 14px; line-height: 1.6;
+    color: #6b4d1f; display: none;
+  }
+  #ansrow { display: none; gap: 8px; margin-top: 10px; align-items: center; }
+  #anslabel { font-size: 13px; font-weight: bold; color: var(--navy); white-space: nowrap; }
+  #answer {
+    flex: 1; min-width: 0; font-family: inherit; font-size: 18px; font-weight: bold;
+    padding: 10px 12px; border: 2px solid var(--navy); border-radius: 9px; color: var(--ink);
+  }
+  #check {
+    flex: none; font-family: inherit; font-size: 15px; font-weight: bold; border-radius: 9px;
+    padding: 11px 18px; cursor: pointer; border: none; background: var(--red); color: #fff;
+  }
+  #check:hover { background: #c23b34; }
+  #quizctl { display: none; gap: 8px; margin-top: 11px; }
+  #quizctl button {
+    font-family: inherit; font-size: 14px; font-weight: bold; border-radius: 9px;
+    padding: 11px 0; cursor: pointer; border: 1.5px solid var(--navy);
+  }
+  #qreset { flex: 1; background: #fff; color: var(--navy); }
+  #qreset:hover { background: #eaf1fa; }
+  #toSteps { flex: 1.6; background: var(--navy); color: #fff; }
+  #toSteps:hover { background: #274b87; }
+  #toQuiz { display: none; width: 100%; margin-top: 8px; font-family: inherit; font-size: 13px;
+    font-weight: bold; border-radius: 9px; padding: 9px 0; cursor: pointer;
+    border: 1.5px dashed var(--navy); background: #fff; color: var(--navy); }
+  #toQuiz:hover { background: #eaf1fa; }
   @media (max-width: 640px) {
     header { padding: 7px 10px; }
     #src { display: none; }
@@ -122,12 +153,25 @@
       <div id="dots"></div>
     </div>
     <div id="caption"></div>
+    <div id="quizhint"></div>
     <div id="formula"></div>
-    <div id="controls">
-      <button id="prev">◀ 前へ</button>
-      <button id="replay">↻ もう一度</button>
-      <button id="next">次へ ▶</button>
+    <div id="ansrow">
+      <span id="anslabel">答え</span>
+      <input id="answer" type="text" inputmode="decimal" autocomplete="off" placeholder="?">
+      <button id="check">答え合わせ</button>
     </div>
+    <div id="controls" style="display:flex" >
+      <div id="stepctl" style="display:flex; gap:8px; flex:1">
+        <button id="prev">◀ 前へ</button>
+        <button id="replay">↻ もう一度</button>
+        <button id="next">次へ ▶</button>
+      </div>
+      <div id="quizctl" style="flex:1">
+        <button id="qreset">↻ 図をもどす</button>
+        <button id="toSteps">▶ 解説を見る</button>
+      </div>
+    </div>
+    <button id="toQuiz">✏️ 問題にもどる(自分で解く)</button>
     <div id="hint">キーボードの ← → でも操作できます</div>
   </div>
 </div>
@@ -364,6 +408,85 @@ const C2D = {
   ghost: "#9aa7b8",     // 補助・軌跡
   paper: "#fbfcfd",     // 背景
 };
+
+
+/* ===== src/core/hittest.js ===== */
+// ==== なぞり判定(純関数)。quizモードの region ヒットテスト ====
+// すべてワールド座標で判定する。座標変換(画面→ワールド)もここに置く。
+// エンジン非依存・DOM非依存なので node のテストでそのまま検証できる。
+"use strict";
+
+// 画面ピクセル → ワールド座標(canvas2d の makeG と逆変換)
+function screenToWorld(px, py, view) {
+  const x = (px - view.ox) / view.scale;
+  const y = view.yUp ? (view.oy - py) / view.scale : (py - view.oy) / view.scale;
+  return [x, y];
+}
+
+// 点が region の shape に含まれるか
+// shape: { kind:"rect", x,y,w,h } … x..x+w, y..y+h(向きは数値としてのみ扱う)
+//        { kind:"poly", pts:[[x,y],...] }
+//        { kind:"seg",  a:[x,y], b:[x,y], r }  … 線分から距離r以内
+function pointInShape(p, shape) {
+  if (shape.kind === "rect") {
+    const x0 = Math.min(shape.x, shape.x + shape.w), x1 = Math.max(shape.x, shape.x + shape.w);
+    const y0 = Math.min(shape.y, shape.y + shape.h), y1 = Math.max(shape.y, shape.y + shape.h);
+    return p[0] >= x0 && p[0] <= x1 && p[1] >= y0 && p[1] <= y1;
+  }
+  if (shape.kind === "poly") {
+    // ray casting
+    const pts = shape.pts;
+    let inside = false;
+    for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+      const xi = pts[i][0], yi = pts[i][1], xj = pts[j][0], yj = pts[j][1];
+      if ((yi > p[1]) !== (yj > p[1]) && p[0] < ((xj - xi) * (p[1] - yi)) / (yj - yi) + xi) inside = !inside;
+    }
+    return inside;
+  }
+  if (shape.kind === "seg") {
+    return distToSeg(p, shape.a, shape.b) <= (shape.r || 0.5);
+  }
+  return false;
+}
+
+function distToSeg(p, a, b) {
+  const vx = b[0] - a[0], vy = b[1] - a[1];
+  const wx = p[0] - a[0], wy = p[1] - a[1];
+  const c1 = vx * wx + vy * wy;
+  if (c1 <= 0) return Math.hypot(wx, wy);
+  const c2 = vx * vx + vy * vy;
+  if (c2 <= c1) return Math.hypot(p[0] - b[0], p[1] - b[1]);
+  const t = c1 / c2;
+  return Math.hypot(p[0] - (a[0] + t * vx), p[1] - (a[1] + t * vy));
+}
+
+// ストローク(ワールド座標の点列)が region にヒットしたか。
+// タップ(点数が少ない)は1点でも中ならヒット。なぞりは過半数の点が中ならヒット。
+function strokeHitsShape(strokePts, shape) {
+  if (!strokePts.length) return false;
+  let inside = 0;
+  for (const p of strokePts) if (pointInShape(p, shape)) inside++;
+  if (strokePts.length <= 4) return inside >= 1;      // タップ
+  return inside / strokePts.length >= 0.5;            // なぞり
+}
+
+// ストロークに最もよくヒットする region を1つ返す(なければ null)
+function pickRegion(strokePts, regions) {
+  let best = null, bestScore = 0;
+  for (const r of regions) {
+    if (!strokeHitsShape(strokePts, r.shape)) continue;
+    let inside = 0;
+    for (const p of strokePts) if (pointInShape(p, r.shape)) inside++;
+    const score = inside / strokePts.length;
+    if (score > bestScore) { best = r; bestScore = score; }
+  }
+  return best;
+}
+
+// node(テスト)用エクスポート
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = { screenToWorld, pointInShape, distToSeg, strokeHitsShape, pickRegion };
+}
 
 
 /* ===== src/render/three-helpers.js ===== */
@@ -701,6 +824,20 @@ function makeG(ctx, screen, view) {
   return G;
 }
 
+// region の shape(rect/poly/seg)を赤い点線で強調表示する(quizのなぞりフィードバック)
+function drawRegionHighlight(g, shape, alpha) {
+  const opts = { color: C2D.red, w: 3, dash: [7, 5], alpha };
+  if (shape.kind === "rect") {
+    g.poly([[shape.x, shape.y], [shape.x + shape.w, shape.y],
+            [shape.x + shape.w, shape.y + shape.h], [shape.x, shape.y + shape.h]],
+      { ...opts, fill: C2D.redFill, fillAlpha: alpha * 0.5 });
+  } else if (shape.kind === "poly") {
+    g.poly(shape.pts, { ...opts, fill: C2D.redFill, fillAlpha: alpha * 0.5 });
+  } else if (shape.kind === "seg") {
+    g.line(shape.a[0], shape.a[1], shape.b[0], shape.b[1], opts);
+  }
+}
+
 /* 2Dバックエンド: <canvas> を用意し、毎フレーム clear→draw する */
 function makeCanvas2DBackend(stageEl) {
   const canvas = document.createElement("canvas");
@@ -729,7 +866,7 @@ function makeCanvas2DBackend(stageEl) {
       const handle = builders[scn.type](scn.params);
       return { handle };
     },
-    frame(bctx, st) {
+    frame(bctx, st, overlay) {
       // 既定ビュー: シナリオの base.view を状態として補間したもの(st.view)を使う。
       // なければ画面中央・スケール1。
       const v = st.view || { ox: screen.w / 2, oy: screen.h / 2, scale: 24, yUp: false };
@@ -742,6 +879,11 @@ function makeCanvas2DBackend(stageEl) {
       const g = makeG(ctx, screen, view);
       g.clear();
       bctx.handle.draw(g, st, screen);
+      // quizモード: なぞられた region のハイライト(ビルダー非依存の上書き描画)
+      if (overlay && overlay.shape && overlay.alpha > 0.01) {
+        drawRegionHighlight(g, overlay.shape, overlay.alpha);
+      }
+      bctx.lastView = view; // 入力(画面→ワールド変換)用に公開
     },
     dispose() {},
   };
@@ -3246,6 +3388,32 @@ function makeWordScenarios() {
         view: { ox: 80, oy: 258, scale: 38, yUp: true },
         k: 0, showBase: 0, showGoal: 0, showAns: 0,
       },
+      // ---- v2: 問題ファースト+なぞりヒント(docs/CONCEPT.md) ----
+      quiz: {
+        question: "ツルとカメが合わせて10匹います。足の数は全部で26本。カメは何匹いるでしょう?",
+        answer: 3, answerLabel: "カメ(匹)",
+        state: { showBase: 1 },   // 面積図の土台(全部ツルの長方形)だけ見せて考えさせる
+        regions: [
+          { id: "baseRect", label: "下の長方形",
+            shape: { kind: "rect", x: 0, y: 0, w: 10, h: 2 } },
+          { id: "upperBand", label: "上のすき間",
+            shape: { kind: "rect", x: 0, y: 2, w: 10, h: 2.6 } },
+        ],
+        hints: {
+          baseRect: [
+            { kind: "ask", text: "この長方形は「全部ツルだったら」の足の数。2本×10匹で何本?" },
+            { kind: "formula", text: "全部ツルなら 2 × 10 = 20本。でも実際は26本…6本たりない!" },
+            { kind: "scenario" },
+          ],
+          upperBand: [
+            { kind: "ask", text: "たりない6本は、この「すき間」にかくれているよ。ツル1匹をカメに交換すると、足は何本ふえる?" },
+            { kind: "anime", caption: "ためしに1匹だけカメに交換してみると…足が2本ふえた!",
+              steps: [{ dur: 1.6, state: { k: 1 } }] },
+            { kind: "formula", text: "カメの数 = (26 − 20) ÷ (4 − 2) = 3匹" },
+            { kind: "scenario" },
+          ],
+        },
+      },
       steps: [
         { dur: 1.6, caption: "ツルとカメが合わせて10匹います。足の数は全部で26本。カメは何匹いるでしょう?" },
         { dur: 2.6, caption: "「面積図」で考えます。横を匹数、縦を1匹の足の数にすると、長方形の面積が足の合計。まず全部ツルだと仮定すると、足は 2本×10匹=20本 にしかなりません。", formula: "全部ツルなら: 2 × 10 = 20本", state: { showBase: 1 } },
@@ -3330,7 +3498,29 @@ const App = {
   scnIdx: 0, stepIdx: 0,
   bctx: null, backend: null,
   from: null, to: null, cur: null, t: 1, dur: 1.4,
+  // ---- quizモード(v2: なぞる→段階ヒント。docs/CONCEPT.md) ----
+  mode: "steps",        // "quiz" | "steps"
+  quizState: null,      // quizモードの現在の到達状態(ヒントアニメで進む)
+  hintLevels: {},       // regionId → 何段階目まで見たか
+  animQueue: [],        // ヒントのマイクロアニメの残りステップ
+  overlay: null,        // { shape, until } なぞった領域のハイライト
+  stroke: null,         // なぞり中の点列(ワールド座標)
 };
+
+// ---- 進捗(localStorage。進捗記録のみに使用可・読み失敗は無視) ----
+const PROGRESS_KEY = "jukuse:progress";
+function loadProgress() {
+  try { return JSON.parse(localStorage.getItem(PROGRESS_KEY)) || {}; } catch (e) { return {}; }
+}
+function saveProgress(p) {
+  try { localStorage.setItem(PROGRESS_KEY, JSON.stringify(p)); } catch (e) { /* 保存できなくても本体は動く */ }
+}
+function markProgress(scnId, patch) {
+  const p = loadProgress();
+  p[scnId] = Object.assign(p[scnId] || { solved: false, tries: 0, hints: 0 }, patch);
+  saveProgress(p);
+  return p[scnId];
+}
 
 let stageEl, backends;
 
@@ -3384,9 +3574,128 @@ function loadScenario(i) {
   App.bctx = App.backend.load(scn, BUILDERS);
   App.cur = null;
   App.stepIdx = 0;
-  gotoStep(0, 0.01);
+  App.hintLevels = {};
+  App.animQueue = [];
+  App.overlay = null;
+  if (scn.quiz) enterQuizMode();       // quiz付きは「問題ファースト」
+  else { App.mode = "steps"; gotoStep(0, 0.01); }
+  syncModeUI();
   syncTabs();
   document.getElementById("src").textContent = scn.source || "";
+}
+
+// ---- quizモード ----
+function quizBaseState(scn) {
+  const s = deepClone(scn.base);
+  if (scn.quiz.state) assignState(s, scn.quiz.state);
+  return s;
+}
+
+function enterQuizMode() {
+  const scn = App.scenarios[App.scnIdx];
+  App.mode = "quiz";
+  App.animQueue = [];
+  App.overlay = null;
+  App.quizState = quizBaseState(scn);
+  App.to = deepClone(App.quizState);
+  App.from = App.cur ? deepClone(App.cur) : deepClone(App.to);
+  App.t = 0; App.dur = 0.6;
+  document.getElementById("stepchip").textContent = "問題";
+  document.getElementById("caption").textContent = scn.quiz.question;
+  document.getElementById("quizhint").textContent = "わからないときは、図の気になるところを指でなぞってみよう。";
+  const f = document.getElementById("formula");
+  f.textContent = ""; f.style.display = "none";
+  document.getElementById("dots").innerHTML = "";
+  const ans = document.getElementById("answer");
+  ans.value = "";
+  document.getElementById("anslabel").textContent = scn.quiz.answerLabel || "答え";
+  syncModeUI();
+}
+
+// UI表示のモード切替(quiz: なぞり+答え / steps: コマ送り)
+function syncModeUI() {
+  const scn = App.scenarios[App.scnIdx];
+  const quiz = App.mode === "quiz";
+  const hasQuiz = !!scn.quiz;
+  document.getElementById("stepctl").style.display = quiz ? "none" : "flex";
+  document.getElementById("quizctl").style.display = quiz ? "flex" : "none";
+  document.getElementById("quizhint").style.display = quiz ? "block" : "none";
+  document.getElementById("ansrow").style.display = quiz && scn.quiz && scn.quiz.answer != null ? "flex" : "none";
+  document.getElementById("toQuiz").style.display = !quiz && hasQuiz ? "block" : "none";
+}
+
+// なぞり(またはタップ)で region がヒットしたとき: 次の段階のヒントを出す
+function onRegionHit(region) {
+  const scn = App.scenarios[App.scnIdx];
+  const hints = (scn.quiz.hints || {})[region.id];
+  if (!hints || !hints.length) return;
+  const lv = Math.min((App.hintLevels[region.id] || 0) + 1, hints.length);
+  App.hintLevels[region.id] = lv;
+  const hint = hints[lv - 1];
+  App.overlay = { shape: region.shape, until: performance.now() + 1800 };
+  markProgress(scn.id, { hints: Math.max(lv, (loadProgress()[scn.id] || {}).hints || 0) });
+
+  const bubble = document.getElementById("quizhint");
+  const tag = `${region.label || "ここ"}(ヒント${lv}/${hints.length})`;
+  if (hint.kind === "ask") {
+    bubble.textContent = `💡 ${tag}: ${hint.text}`;
+  } else if (hint.kind === "anime") {
+    bubble.textContent = `💡 ${tag}: ${hint.caption || "動きをよく見て!"}`;
+    App.animQueue = hint.steps.slice();
+    nextQuizAnim();
+  } else if (hint.kind === "formula") {
+    bubble.textContent = `💡 ${tag}: 式で書くと…`;
+    const f = document.getElementById("formula");
+    f.textContent = hint.text; f.style.display = "block";
+  } else if (hint.kind === "scenario") {
+    switchToSteps();
+  }
+}
+
+function nextQuizAnim() {
+  if (!App.animQueue.length) return;
+  const step = App.animQueue.shift();
+  assignState(App.quizState, step.state || {});
+  App.to = deepClone(App.quizState);
+  App.from = App.cur ? deepClone(App.cur) : deepClone(App.to);
+  App.t = 0;
+  App.dur = step.dur || 1.4;
+}
+
+function resetQuizFigure() {
+  const scn = App.scenarios[App.scnIdx];
+  App.animQueue = [];
+  App.quizState = quizBaseState(scn);
+  App.to = deepClone(App.quizState);
+  App.from = App.cur ? deepClone(App.cur) : deepClone(App.to);
+  App.t = 0; App.dur = 0.8;
+}
+
+function switchToSteps() {
+  App.mode = "steps";
+  App.animQueue = [];
+  App.overlay = null;
+  App.stepIdx = 0;
+  gotoStep(0, 0.8);
+  syncModeUI();
+}
+
+// 答え合わせ(演習): 正解→記録、まちがい→なぞり導線へ
+function checkAnswer() {
+  const scn = App.scenarios[App.scnIdx];
+  const raw = document.getElementById("answer").value.trim().replace("。", ".").replace("．", ".");
+  const val = parseFloat(raw);
+  const bubble = document.getElementById("quizhint");
+  if (raw === "" || isNaN(val)) { bubble.textContent = "数字を入れてから「答え合わせ」を押してね。"; return; }
+  const pr = markProgress(scn.id, {});
+  if (Math.abs(val - scn.quiz.answer) < 1e-9) {
+    markProgress(scn.id, { solved: true, tries: pr.tries + 1 });
+    bubble.textContent = `🎉 正解! ${scn.quiz.answer}${scn.quiz.answerLabel ? "(" + scn.quiz.answerLabel + ")" : ""}。「解説を見る」で確かめよう。`;
+    renderProblemTabs(); syncTabs();
+  } else {
+    markProgress(scn.id, { tries: pr.tries + 1 });
+    bubble.textContent = "おしい! 図の「あやしいな」と思うところを指でなぞってみよう。ヒントが出るよ。";
+  }
 }
 
 function gotoStep(idx, dur) {
@@ -3413,6 +3722,38 @@ function replayStep() {
   const idx = App.stepIdx;
   App.cur = idx === 0 ? deepClone(scn.base) : mergedState(scn, idx - 1);
   gotoStep(idx);
+}
+
+// ---- なぞり入力(2Dのみ)。画面座標→ワールド座標に直して蓄積 ----
+function strokePoint(ev) {
+  if (!App.bctx || !App.bctx.lastView) return null;
+  const rect = stageEl.getBoundingClientRect();
+  return screenToWorld(ev.clientX - rect.left, ev.clientY - rect.top, App.bctx.lastView);
+}
+function bindPointer() {
+  stageEl.addEventListener("pointerdown", (ev) => {
+    if (App.mode !== "quiz" || App.backend.kind !== "canvas2d") return;
+    const p = strokePoint(ev);
+    if (p) { App.stroke = [p]; stageEl.setPointerCapture(ev.pointerId); }
+  });
+  stageEl.addEventListener("pointermove", (ev) => {
+    if (!App.stroke) return;
+    const p = strokePoint(ev);
+    if (!p) return;
+    const last = App.stroke[App.stroke.length - 1];
+    const minStep = 6 / (App.bctx.lastView.scale || 24); // 6pxごとにサンプリング
+    if (Math.hypot(p[0] - last[0], p[1] - last[1]) >= minStep) App.stroke.push(p);
+  });
+  const finish = (ev) => {
+    if (!App.stroke) return;
+    const scn = App.scenarios[App.scnIdx];
+    const stroke = App.stroke; App.stroke = null;
+    if (!scn.quiz || !scn.quiz.regions) return;
+    const region = pickRegion(stroke, scn.quiz.regions);
+    if (region) onRegionHit(region);
+  };
+  stageEl.addEventListener("pointerup", finish);
+  stageEl.addEventListener("pointercancel", () => { App.stroke = null; });
 }
 
 // ---- 単元(unit) → 問題(problem) の2階層タブ ----
@@ -3445,10 +3786,13 @@ function renderProblemTabs() {
   const unit = App.units.find((u) => u.id === uid);
   const row = document.getElementById("tabs");
   row.innerHTML = "";
+  const progress = loadProgress();
   unit.items.forEach((it) => {
     const b = document.createElement("button");
     b.className = "tab";
-    b.textContent = it.name;
+    const scn = App.scenarios[it.scnIndex];
+    const solved = progress[scn.id] && progress[scn.id].solved;
+    b.textContent = (solved ? "✓ " : "") + it.name;
     b.onclick = () => loadScenario(it.scnIndex);
     row.appendChild(b);
   });
@@ -3486,10 +3830,20 @@ function init() {
     if (App.stepIdx > 0) gotoStep(App.stepIdx - 1, 1.0);
   };
   document.getElementById("replay").onclick = replayStep;
+  document.getElementById("toSteps").onclick = switchToSteps;
+  document.getElementById("toQuiz").onclick = enterQuizMode;
+  document.getElementById("qreset").onclick = resetQuizFigure;
+  document.getElementById("check").onclick = checkAnswer;
+  document.getElementById("answer").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") checkAnswer();
+  });
   window.addEventListener("keydown", (e) => {
+    if (e.target && e.target.tagName === "INPUT") return;
+    if (App.mode !== "steps") return;
     if (e.key === "ArrowRight") document.getElementById("next").click();
     if (e.key === "ArrowLeft") document.getElementById("prev").click();
   });
+  bindPointer();
 
   loadScenario(0);
 
@@ -3499,8 +3853,16 @@ function init() {
     const dt = Math.min((now - last) / 1000, 0.05);
     last = now;
     if (App.t < 1) App.t = Math.min(1, App.t + dt / App.dur);
+    else if (App.mode === "quiz" && App.animQueue.length) nextQuizAnim(); // ヒントアニメの次のコマへ
     App.cur = lerpStates(App.from, App.to, easeInOut(App.t));
-    App.backend.frame(App.bctx, App.cur);
+    // なぞりハイライト(時間で消える)
+    let overlay = null;
+    if (App.overlay) {
+      const remain = App.overlay.until - now;
+      if (remain <= 0) App.overlay = null;
+      else overlay = { shape: App.overlay.shape, alpha: Math.min(1, remain / 600) * 0.9 };
+    }
+    App.backend.frame(App.bctx, App.cur, overlay);
   };
   requestAnimationFrame(loop);
 }

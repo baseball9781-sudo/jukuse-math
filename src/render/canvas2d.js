@@ -159,6 +159,20 @@ function makeG(ctx, screen, view) {
   return G;
 }
 
+// region の shape(rect/poly/seg)を赤い点線で強調表示する(quizのなぞりフィードバック)
+function drawRegionHighlight(g, shape, alpha) {
+  const opts = { color: C2D.red, w: 3, dash: [7, 5], alpha };
+  if (shape.kind === "rect") {
+    g.poly([[shape.x, shape.y], [shape.x + shape.w, shape.y],
+            [shape.x + shape.w, shape.y + shape.h], [shape.x, shape.y + shape.h]],
+      { ...opts, fill: C2D.redFill, fillAlpha: alpha * 0.5 });
+  } else if (shape.kind === "poly") {
+    g.poly(shape.pts, { ...opts, fill: C2D.redFill, fillAlpha: alpha * 0.5 });
+  } else if (shape.kind === "seg") {
+    g.line(shape.a[0], shape.a[1], shape.b[0], shape.b[1], opts);
+  }
+}
+
 /* 2Dバックエンド: <canvas> を用意し、毎フレーム clear→draw する */
 function makeCanvas2DBackend(stageEl) {
   const canvas = document.createElement("canvas");
@@ -187,7 +201,7 @@ function makeCanvas2DBackend(stageEl) {
       const handle = builders[scn.type](scn.params);
       return { handle };
     },
-    frame(bctx, st) {
+    frame(bctx, st, overlay) {
       // 既定ビュー: シナリオの base.view を状態として補間したもの(st.view)を使う。
       // なければ画面中央・スケール1。
       const v = st.view || { ox: screen.w / 2, oy: screen.h / 2, scale: 24, yUp: false };
@@ -200,6 +214,11 @@ function makeCanvas2DBackend(stageEl) {
       const g = makeG(ctx, screen, view);
       g.clear();
       bctx.handle.draw(g, st, screen);
+      // quizモード: なぞられた region のハイライト(ビルダー非依存の上書き描画)
+      if (overlay && overlay.shape && overlay.alpha > 0.01) {
+        drawRegionHighlight(g, overlay.shape, overlay.alpha);
+      }
+      bctx.lastView = view; // 入力(画面→ワールド変換)用に公開
     },
     dispose() {},
   };

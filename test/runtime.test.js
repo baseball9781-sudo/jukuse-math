@@ -104,6 +104,39 @@ for (const scn of scenarios) {
       frame(mid);
       frame(to);
     }
+    // ---- quiz(v2)の検証: スキーマ+ヒントアニメの実行時チェック ----
+    if (scn.quiz) {
+      const q = scn.quiz;
+      if (!q.question) throw new Error("quiz.question がない");
+      if (!Array.isArray(q.regions) || !q.regions.length) throw new Error("quiz.regions が空");
+      const KINDS = new Set(["ask", "anime", "formula", "scenario"]);
+      // 問題表示状態を描く
+      const qs = JSON.parse(JSON.stringify(scn.base));
+      assignState(qs, q.state || {});
+      frame(qs);
+      for (const r of q.regions) {
+        if (!r.id || !r.shape || !["rect", "poly", "seg"].includes(r.shape.kind))
+          throw new Error(`region ${r.id || "?"} の shape が不正`);
+        const hints = (q.hints || {})[r.id];
+        if (!hints || !hints.length) throw new Error(`region ${r.id} に hints がない`);
+        for (const h of hints) {
+          if (!KINDS.has(h.kind)) throw new Error(`region ${r.id} に不明な hint kind: ${h.kind}`);
+          if (h.kind === "anime") {
+            // ヒントアニメを quiz状態起点で1コマずつ実行
+            const hs = JSON.parse(JSON.stringify(qs));
+            for (const step of h.steps || []) {
+              assignState(hs, step.state || {});
+              frame(hs);
+            }
+          }
+        }
+      }
+      // hints に対応しない region 参照がないか(逆方向)
+      for (const key of Object.keys(q.hints || {})) {
+        if (!q.regions.find((r) => r.id === key)) throw new Error(`hints.${key} に対応する region がない`);
+      }
+      console.log(`PASS  [${scn.unit}] ${scn.id} quiz(${q.regions.length} regions) OK`);
+    }
     console.log(`PASS  [${scn.unit}] ${scn.id} (${scn.render}) 全${scn.steps.length}ステップ`);
   } catch (e) {
     console.log(`FAIL  [${scn.unit}] ${scn.id} (${scn.render}): ${e.message}`);

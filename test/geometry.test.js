@@ -313,6 +313,39 @@ console.log("PYRAMID VOLUME TESTS DONE");
 }
 console.log("STREAM/PASS TESTS DONE");
 
+// ---------- 18. v2: なぞり判定(hittest) ----------
+{
+  const H = require("../src/core/hittest.js");
+  // 画面→ワールド変換(yUp両対応)
+  const vUp = { ox: 80, oy: 258, scale: 38, yUp: true };
+  const p1 = H.screenToWorld(80 + 38 * 2, 258 - 38 * 3, vUp);
+  ok(near(p1[0], 2) && near(p1[1], 3), `screenToWorld yUp (got ${p1})`);
+  const vDn = { ox: 70, oy: 40, scale: 34, yUp: false };
+  const p2 = H.screenToWorld(70 + 34 * 5, 40 + 34 * 2, vDn);
+  ok(near(p2[0], 5) && near(p2[1], 2), `screenToWorld yDown (got ${p2})`);
+  // rect / poly / seg
+  ok(H.pointInShape([5, 3], { kind: "rect", x: 0, y: 2, w: 10, h: 2 }), "rect: 中は true");
+  ok(!H.pointInShape([5, 1], { kind: "rect", x: 0, y: 2, w: 10, h: 2 }), "rect: 外は false");
+  ok(H.pointInShape([1, 1], { kind: "poly", pts: [[0, 0], [3, 0], [0, 3]] }), "poly: 中は true");
+  ok(!H.pointInShape([2.6, 2.6], { kind: "poly", pts: [[0, 0], [3, 0], [0, 3]] }), "poly: 外は false");
+  ok(H.pointInShape([3, 0.3], { kind: "seg", a: [0, 0], b: [6, 0], r: 0.5 }), "seg: 近くは true");
+  ok(!H.pointInShape([3, 0.8], { kind: "seg", a: [0, 0], b: [6, 0], r: 0.5 }), "seg: 遠くは false");
+  // ストローク判定: タップ(1点)と、なぞり(過半数ルール)
+  ok(H.strokeHitsShape([[5, 3]], { kind: "rect", x: 0, y: 2, w: 10, h: 2 }), "タップ1点でヒット");
+  const trace = [[0,3],[2,3],[4,3],[6,3],[8,3],[10,3],[12,3]]; // 7点中6点が中
+  ok(H.strokeHitsShape(trace, { kind: "rect", x: 0, y: 2, w: 10, h: 2 }), "なぞり(過半数)でヒット");
+  const miss = [[0,9],[2,9],[4,9],[6,9],[8,3],[10,9],[12,9]];  // 7点中1点だけ中
+  ok(!H.strokeHitsShape(miss, { kind: "rect", x: 0, y: 2, w: 10, h: 2 }), "かすっただけではヒットしない");
+  // pickRegion: よりよく重なる region を選ぶ
+  const regions = [
+    { id: "a", shape: { kind: "rect", x: 0, y: 0, w: 10, h: 2 } },
+    { id: "b", shape: { kind: "rect", x: 0, y: 2, w: 10, h: 2.6 } },
+  ];
+  const pick = H.pickRegion([[1, 3], [3, 3], [5, 3], [7, 3.5], [9, 1]], regions);
+  ok(pick && pick.id === "b", `pickRegion は b を選ぶ (got ${pick && pick.id})`);
+}
+console.log("HITTEST TESTS DONE");
+
 // ---------- 最終集計(途中のFAILも拾って非0で終了する) ----------
 console.log(fails === 0 ? "\nGEOMETRY: ALL PASSED" : `\nGEOMETRY: ${fails} TEST(S) FAILED`);
 process.exit(fails === 0 ? 0 : 1);

@@ -42,6 +42,7 @@ function orderedFiles() {
     "math.js",
     "core/util.js",
     "core/palette.js",
+    "core/hittest.js",
     "render/three-helpers.js",
     "render/canvas2d.js",
     "render/backend-three.js",
