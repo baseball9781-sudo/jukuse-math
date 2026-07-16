@@ -1,4 +1,4 @@
-# CLAUDE.md — このリポジトリで作業するAIへの指示
+# AGENTS.md — このリポジトリで作業するAI(CodeX等)への指示 ※CLAUDE.mdと同内容を保つこと
 
 中学受験算数のインタラクティブ教材。**立体図形は3D(Three.js)、平面図形・速さ・割合などは2D(Canvas)** の2バックエンドを、同じ「コマ送り+字幕」エンジンで扱う。新しい問題や単元を足すのが主な作業。
 **まず `docs/ARCHITECTURE.md` と `docs/ADD_SCENARIO.md` を読むこと。**
