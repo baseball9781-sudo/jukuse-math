@@ -94,6 +94,41 @@ function makeMyUnitScenarios() {
 
 ---
 
+## quiz(v2): 問題ファースト+なぞりヒント を付ける
+
+シナリオに `quiz` フィールドを足すと「問題モード」で始まる(なければ従来のコマ送りのみ)。
+**このスキーマが Claude / CodeX 協働の契約。変更は docs/CONCEPT.md の改訂とセットで。**
+
+```js
+quiz: {
+  question: "問題文(子どもが最初に読む)",
+  answer: 3,                    // 数値答え(null/省略で答え入力なし)
+  answerLabel: "カメの数（匹）",  // 入力欄のラベル
+  state: { showBase: 1 },       // 問題表示時の状態差分(baseに重ねる)。省略時はbaseのまま
+  regions: [                    // なぞれる領域(ワールド座標)
+    { id: "upperBand", label: "上のすき間",
+      shape: { kind: "rect", x: 0, y: 2, w: 10, h: 2.6 } },
+    // kind: "rect"{x,y,w,h} / "poly"{pts:[[x,y],..]} / "seg"{a:[x,y],b:[x,y],r}
+  ],
+  hints: {                      // regionごとの段階ヒント(なぞるたび1段深く)
+    upperBand: [
+      { kind: "ask",     text: "問いかけ(考えさせる)" },
+      { kind: "anime",   caption: "何が起きるかの一言", steps: [{ dur: 1.6, state: { k: 1 } }] },
+      { kind: "formula", text: "式" },
+      { kind: "scenario" },     // 最後は全解説(既存steps)へ
+    ],
+  },
+}
+```
+
+作法:
+- **ヒントの順序は ask → anime → formula → scenario** を基本形にする(いきなり答えを見せない)
+- anime の steps は quiz.state を起点に**既存のstepと同じ形式**で書く(状態はビルダーの語彙)
+- region は「教える場所」ではなく「子どもが気になる場所」に置く(問題の急所2〜3個)
+- 文言は小4が1人で読める言葉で。「〜かな。」の問いかけ調
+- 答えは数値のみ(分数は小数にするか answer を省略して入力なしに)
+- runtime.test.js が quiz スキーマとヒントアニメを自動検証する。`npm run verify` を通すこと
+
 ## 共通:検算とビルド
 
 計算があれば `test/geometry.test.js` の末尾に:

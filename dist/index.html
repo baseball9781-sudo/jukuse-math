@@ -1243,6 +1243,40 @@ function makePlaneScenarios() {
         d: 0, showTri: 1, showGraph: 1,
         gx0: 8.5, gy0: 0, gsx: 0.5, gsy: 0.42,
       },
+      quiz: {
+        question: "長方形ABCD(横6cm・縦4cm)の周りを、点PがAからB→C→Dの順に動きます。三角形ABPの面積がいちばん大きくなるのは何cm²でしょう?",
+        answer: 12, answerLabel: "面積（cm²）",
+        state: { d: 0.1, showGraph: 0 },   // Pを少しだけ動かした状態から考えさせる
+        regions: [
+          { id: "edgeBC", label: "辺BC",
+            shape: { kind: "seg", a: [6, 0], b: [6, 4], r: 0.7 } },
+          { id: "edgeCD", label: "辺CD",
+            shape: { kind: "seg", a: [6, 4], b: [0, 4], r: 0.7 } },
+          { id: "triangle", label: "三角形ABP",
+            shape: { kind: "poly", pts: [[0, 0], [6, 0], [3, 2.6]] } },
+        ],
+        hints: {
+          edgeBC: [
+            { kind: "ask", text: "PがBからCへ上がっていくと、三角形の「高さ」はどうなるかな。" },
+            { kind: "anime", caption: "Pが上がるほど高さが増えて、Cに着いたとき最大!",
+              steps: [{ dur: 2.4, state: { d: 10 / 16 } }] },
+            { kind: "formula", text: "最大の面積 ＝ 6 × 4 ÷ 2" },
+            { kind: "scenario" },
+          ],
+          edgeCD: [
+            { kind: "ask", text: "PがCからDへ動く間、高さは変わるかな。" },
+            { kind: "anime", caption: "高さは4cmのまま。面積は変わらず最大のまま!",
+              steps: [{ dur: 2.4, state: { d: 1 } }] },
+            { kind: "formula", text: "CD上はずっと 6 × 4 ÷ 2 ＝ 12（cm²）" },
+            { kind: "scenario" },
+          ],
+          triangle: [
+            { kind: "ask", text: "三角形ABPの底辺はAB(6cm)。面積が大きくなるには、何が大きくなればいい?" },
+            { kind: "formula", text: "面積 ＝ 底辺 × 高さ ÷ 2。底辺が同じなら高さで決まる!" },
+            { kind: "scenario" },
+          ],
+        },
+      },
       steps: [
         { dur: 1.4, caption: "長方形ABCD(横6cm・縦4cm)の周りを、点PがAを出発してB→C→Dの順に動きます。三角形ABPの面積は、どう変わっていく?", state: { d: 0, showTri: 1, showGraph: 0 } },
         { dur: 3.0, caption: "PがAからBへ動く間。三角形ABPはぺちゃんこ(高さ0)のまま。底辺ABの上をPがすべっても、面積は0のままです。", formula: "AB間: 面積 = 0", state: { d: 6 / 16, showGraph: 1 } },
@@ -2867,6 +2901,38 @@ function makeRatioScenarios() {
         beamY: 2.3, fx: 6.5, tilt: 0,
         showBeam: 0, showFx: 0, showAns: 0, showRatio: 0,
       },
+      quiz: {
+        question: "4%の食塩水300gと、9%の食塩水200gを混ぜます。何%の食塩水になるでしょう?",
+        answer: 6, answerLabel: "濃さ（%）",
+        state: { showBeam: 1, tilt: 7 },   // おもりを下げて、真ん中支点でかたむいた状態から考えさせる
+        regions: [
+          { id: "shiten", label: "支点のあたり",
+            shape: { kind: "rect", x: 5.3, y: 1.2, w: 2.4, h: 1.3 } },
+          { id: "omoriL", label: "300gのおもり",
+            shape: { kind: "rect", x: 2.9, y: 0.5, w: 2.2, h: 1.9 } },
+          { id: "omoriR", label: "200gのおもり",
+            shape: { kind: "rect", x: 7.9, y: 0.5, w: 2.2, h: 1.9 } },
+        ],
+        hints: {
+          shiten: [
+            { kind: "ask", text: "てんびんがつり合う場所が、混ぜた濃さ。重い300gの側と軽い200gの側、どちらに近いかな。" },
+            { kind: "anime", caption: "支点を300gの側へ少しずらすと…つり合った! ここが答えの濃さ。",
+              steps: [{ dur: 2.0, state: { fx: 6, tilt: 0, showFx: 1 } }] },
+            { kind: "formula", text: "支点までの距離の比 2:3 は、重さの比 300:200＝3:2 の逆比" },
+            { kind: "scenario" },
+          ],
+          omoriL: [
+            { kind: "ask", text: "300gは重いおもり。つり合う場所は、重いおもりの近く? 遠く?" },
+            { kind: "formula", text: "重いほうの近くでつり合う → 答えは4%寄り" },
+            { kind: "scenario" },
+          ],
+          omoriR: [
+            { kind: "ask", text: "200gは軽いおもり。支点が近づくのは300gと200g、どっち?" },
+            { kind: "formula", text: "軽いほうからは遠くなる → 9%から離れて4%寄り" },
+            { kind: "scenario" },
+          ],
+        },
+      },
       steps: [
         { dur: 1.6, caption: "4%の食塩水300gと、9%の食塩水200gを混ぜます。何%の食塩水になるでしょう?" },
         { dur: 2.8, caption: "「てんびん図」で考えます。濃さの数直線の4と9に、食塩水を重さのおもりとしてぶら下げます。ためしに真ん中を支えてみると…300gの側にかたむいてしまいます。", state: { showBeam: 1, tilt: 7 } },
@@ -3236,6 +3302,33 @@ function makeSpeedScenarios() {
         gridX: 2, gridT: 0.5, tick: 12,
         showGraph: 1, showMeet: 1, meetLabel: "出会い",
       },
+      quiz: {
+        question: "PQ間は12km。AさんはPから時速4kmで、BさんはQから時速6kmで、同時に向かい合って出発します。2人が出会うのは何時間後でしょう?",
+        answer: 1.2, answerLabel: "時間（時間）",
+        state: { t: 0, showGraph: 0, showMeet: 0 },
+        regions: [
+          { id: "road", label: "道",
+            shape: { kind: "rect", x: 0, y: 0.2, w: 12, h: 1.6 } },
+          { id: "graph", label: "グラフ",
+            shape: { kind: "rect", x: 0, y: 3, w: 12, h: 7 } },
+        ],
+        hints: {
+          road: [
+            { kind: "ask", text: "1時間たつと、2人の間は何kmちぢまるかな。Aは4km、Bは6km進むよ。" },
+            { kind: "anime", caption: "動かしてみよう。2人合わせて1時間に10kmずつ近づいていく。",
+              steps: [{ dur: 2.4, state: { t: 0.3 } }] },
+            { kind: "formula", text: "出会う時間 ＝ 12 ÷（4＋6）" },
+            { kind: "scenario" },
+          ],
+          graph: [
+            { kind: "ask", text: "グラフの2本の線が交わったところが「出会い」。線を出してみようか。" },
+            { kind: "anime", caption: "2本の線がだんだん近づいて…交わった所が出会う瞬間!",
+              steps: [{ dur: 2.6, state: { t: 0.6, showGraph: 1, showMeet: 1 } }] },
+            { kind: "formula", text: "12 ÷（4＋6）＝ 1.2（時間後）" },
+            { kind: "scenario" },
+          ],
+        },
+      },
       steps: [
         { dur: 1.4, caption: "PQ間は12km。AさんはPから時速4kmで、BさんはQから時速6kmで、同時に向かい合って出発します。何時間後に出会う?", state: { t: 0, showGraph: 0, showMeet: 0 } },
         { dur: 4.0, caption: "2人が近づいていきます。下のグラフは、横が「PからのDistance(距離)」、縦が「時間」。2本の線が近づいて、交わったところが出会う瞬間です。", state: { t: meet1 / 2, showGraph: 1 } },
@@ -3314,6 +3407,31 @@ function makeSpeedScenarios() {
         view: { ox: 150, oy: 185, scale: 30, yUp: true },
         front: -120, ms: 0.015,
         showGhost: 0, showDist: 0, showAns: 0,
+      },
+      quiz: {
+        question: "長さ200mの列車が、秒速20mで長さ600mの橋をわたります。わたり始めてから、わたり終わるまで何秒かかるでしょう?",
+        answer: 40, answerLabel: "時間（秒）",
+        state: { front: 0, showGhost: 1 },   // 「わたり始め」の瞬間から考えさせる
+        regions: [
+          { id: "bridge", label: "橋",
+            shape: { kind: "rect", x: 0, y: -1.4, w: 9, h: 1.6 } },
+          { id: "train", label: "列車",
+            shape: { kind: "rect", x: -3.2, y: 0, w: 3.4, h: 1.8 } },
+        ],
+        hints: {
+          bridge: [
+            { kind: "ask", text: "「わたり終わり」は、列車のどこが橋を出た瞬間かな。先頭? 最後尾?" },
+            { kind: "anime", caption: "最後尾が橋を出るまで動かすと…先頭は橋のむこう200m先!",
+              steps: [{ dur: 2.8, state: { front: 800, showDist: 1 } }] },
+            { kind: "formula", text: "先頭が進む道のり ＝ 橋600m ＋ 列車200m" },
+            { kind: "scenario" },
+          ],
+          train: [
+            { kind: "ask", text: "列車には長さが200mあるよ。先頭が橋を出ても、わたり終わりじゃないのはなぜ?" },
+            { kind: "formula", text: "時間 ＝（600＋200）÷ 20" },
+            { kind: "scenario" },
+          ],
+        },
       },
       steps: [
         { dur: 1.8, caption: "長さ200mの列車が、秒速20mで長さ600mの橋をわたります。わたり始めてから、わたり終わるまで何秒かかるでしょう?" },

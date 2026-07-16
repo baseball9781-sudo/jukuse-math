@@ -11,6 +11,40 @@ function makePlaneScenarios() {
         d: 0, showTri: 1, showGraph: 1,
         gx0: 8.5, gy0: 0, gsx: 0.5, gsy: 0.42,
       },
+      quiz: {
+        question: "長方形ABCD(横6cm・縦4cm)の周りを、点PがAからB→C→Dの順に動きます。三角形ABPの面積がいちばん大きくなるのは何cm²でしょう?",
+        answer: 12, answerLabel: "面積（cm²）",
+        state: { d: 0.1, showGraph: 0 },   // Pを少しだけ動かした状態から考えさせる
+        regions: [
+          { id: "edgeBC", label: "辺BC",
+            shape: { kind: "seg", a: [6, 0], b: [6, 4], r: 0.7 } },
+          { id: "edgeCD", label: "辺CD",
+            shape: { kind: "seg", a: [6, 4], b: [0, 4], r: 0.7 } },
+          { id: "triangle", label: "三角形ABP",
+            shape: { kind: "poly", pts: [[0, 0], [6, 0], [3, 2.6]] } },
+        ],
+        hints: {
+          edgeBC: [
+            { kind: "ask", text: "PがBからCへ上がっていくと、三角形の「高さ」はどうなるかな。" },
+            { kind: "anime", caption: "Pが上がるほど高さが増えて、Cに着いたとき最大!",
+              steps: [{ dur: 2.4, state: { d: 10 / 16 } }] },
+            { kind: "formula", text: "最大の面積 ＝ 6 × 4 ÷ 2" },
+            { kind: "scenario" },
+          ],
+          edgeCD: [
+            { kind: "ask", text: "PがCからDへ動く間、高さは変わるかな。" },
+            { kind: "anime", caption: "高さは4cmのまま。面積は変わらず最大のまま!",
+              steps: [{ dur: 2.4, state: { d: 1 } }] },
+            { kind: "formula", text: "CD上はずっと 6 × 4 ÷ 2 ＝ 12（cm²）" },
+            { kind: "scenario" },
+          ],
+          triangle: [
+            { kind: "ask", text: "三角形ABPの底辺はAB(6cm)。面積が大きくなるには、何が大きくなればいい?" },
+            { kind: "formula", text: "面積 ＝ 底辺 × 高さ ÷ 2。底辺が同じなら高さで決まる!" },
+            { kind: "scenario" },
+          ],
+        },
+      },
       steps: [
         { dur: 1.4, caption: "長方形ABCD(横6cm・縦4cm)の周りを、点PがAを出発してB→C→Dの順に動きます。三角形ABPの面積は、どう変わっていく?", state: { d: 0, showTri: 1, showGraph: 0 } },
         { dur: 3.0, caption: "PがAからBへ動く間。三角形ABPはぺちゃんこ(高さ0)のまま。底辺ABの上をPがすべっても、面積は0のままです。", formula: "AB間: 面積 = 0", state: { d: 6 / 16, showGraph: 1 } },

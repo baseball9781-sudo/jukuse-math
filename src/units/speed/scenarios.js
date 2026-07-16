@@ -28,6 +28,33 @@ function makeSpeedScenarios() {
         gridX: 2, gridT: 0.5, tick: 12,
         showGraph: 1, showMeet: 1, meetLabel: "出会い",
       },
+      quiz: {
+        question: "PQ間は12km。AさんはPから時速4kmで、BさんはQから時速6kmで、同時に向かい合って出発します。2人が出会うのは何時間後でしょう?",
+        answer: 1.2, answerLabel: "時間（時間）",
+        state: { t: 0, showGraph: 0, showMeet: 0 },
+        regions: [
+          { id: "road", label: "道",
+            shape: { kind: "rect", x: 0, y: 0.2, w: 12, h: 1.6 } },
+          { id: "graph", label: "グラフ",
+            shape: { kind: "rect", x: 0, y: 3, w: 12, h: 7 } },
+        ],
+        hints: {
+          road: [
+            { kind: "ask", text: "1時間たつと、2人の間は何kmちぢまるかな。Aは4km、Bは6km進むよ。" },
+            { kind: "anime", caption: "動かしてみよう。2人合わせて1時間に10kmずつ近づいていく。",
+              steps: [{ dur: 2.4, state: { t: 0.3 } }] },
+            { kind: "formula", text: "出会う時間 ＝ 12 ÷（4＋6）" },
+            { kind: "scenario" },
+          ],
+          graph: [
+            { kind: "ask", text: "グラフの2本の線が交わったところが「出会い」。線を出してみようか。" },
+            { kind: "anime", caption: "2本の線がだんだん近づいて…交わった所が出会う瞬間!",
+              steps: [{ dur: 2.6, state: { t: 0.6, showGraph: 1, showMeet: 1 } }] },
+            { kind: "formula", text: "12 ÷（4＋6）＝ 1.2（時間後）" },
+            { kind: "scenario" },
+          ],
+        },
+      },
       steps: [
         { dur: 1.4, caption: "PQ間は12km。AさんはPから時速4kmで、BさんはQから時速6kmで、同時に向かい合って出発します。何時間後に出会う?", state: { t: 0, showGraph: 0, showMeet: 0 } },
         { dur: 4.0, caption: "2人が近づいていきます。下のグラフは、横が「PからのDistance(距離)」、縦が「時間」。2本の線が近づいて、交わったところが出会う瞬間です。", state: { t: meet1 / 2, showGraph: 1 } },
@@ -106,6 +133,31 @@ function makeSpeedScenarios() {
         view: { ox: 150, oy: 185, scale: 30, yUp: true },
         front: -120, ms: 0.015,
         showGhost: 0, showDist: 0, showAns: 0,
+      },
+      quiz: {
+        question: "長さ200mの列車が、秒速20mで長さ600mの橋をわたります。わたり始めてから、わたり終わるまで何秒かかるでしょう?",
+        answer: 40, answerLabel: "時間（秒）",
+        state: { front: 0, showGhost: 1 },   // 「わたり始め」の瞬間から考えさせる
+        regions: [
+          { id: "bridge", label: "橋",
+            shape: { kind: "rect", x: 0, y: -1.4, w: 9, h: 1.6 } },
+          { id: "train", label: "列車",
+            shape: { kind: "rect", x: -3.2, y: 0, w: 3.4, h: 1.8 } },
+        ],
+        hints: {
+          bridge: [
+            { kind: "ask", text: "「わたり終わり」は、列車のどこが橋を出た瞬間かな。先頭? 最後尾?" },
+            { kind: "anime", caption: "最後尾が橋を出るまで動かすと…先頭は橋のむこう200m先!",
+              steps: [{ dur: 2.8, state: { front: 800, showDist: 1 } }] },
+            { kind: "formula", text: "先頭が進む道のり ＝ 橋600m ＋ 列車200m" },
+            { kind: "scenario" },
+          ],
+          train: [
+            { kind: "ask", text: "列車には長さが200mあるよ。先頭が橋を出ても、わたり終わりじゃないのはなぜ?" },
+            { kind: "formula", text: "時間 ＝（600＋200）÷ 20" },
+            { kind: "scenario" },
+          ],
+        },
       },
       steps: [
         { dur: 1.8, caption: "長さ200mの列車が、秒速20mで長さ600mの橋をわたります。わたり始めてから、わたり終わるまで何秒かかるでしょう?" },
