@@ -64,7 +64,7 @@
   .tab.active { background: var(--navy); color: #fff; }
   #src { font-size: 11.5px; color: #8a99ad; margin-left: auto; white-space: nowrap; }
 
-  #stage { position: relative; flex: 1; min-height: 0; }
+  #stage { position: relative; flex: 1; min-height: 0; touch-action: none; }
   #stage canvas { display: block; }
 
   #deck {
@@ -97,6 +97,37 @@
   #next:hover:not(:disabled) { background: #274b87; }
   #controls button:disabled { opacity: 0.35; cursor: default; }
   #hint { text-align: center; font-size: 11px; color: #97a5b8; margin-top: 7px; }
+
+  /* ---- quizモード(v2: なぞる→段階ヒント) ---- */
+  #quizhint {
+    margin-top: 8px; background: #fff7ee; border-left: 4px solid #e8a13d;
+    border-radius: 0 8px 8px 0; padding: 8px 12px; font-size: 14px; line-height: 1.6;
+    color: #6b4d1f; display: none;
+  }
+  #ansrow { display: none; gap: 8px; margin-top: 10px; align-items: center; }
+  #anslabel { font-size: 13px; font-weight: bold; color: var(--navy); white-space: nowrap; }
+  #answer {
+    flex: 1; min-width: 0; font-family: inherit; font-size: 18px; font-weight: bold;
+    padding: 10px 12px; border: 2px solid var(--navy); border-radius: 9px; color: var(--ink);
+  }
+  #check {
+    flex: none; font-family: inherit; font-size: 15px; font-weight: bold; border-radius: 9px;
+    padding: 11px 18px; cursor: pointer; border: none; background: var(--red); color: #fff;
+  }
+  #check:hover { background: #c23b34; }
+  #quizctl { display: none; gap: 8px; margin-top: 11px; }
+  #quizctl button {
+    font-family: inherit; font-size: 14px; font-weight: bold; border-radius: 9px;
+    padding: 11px 0; cursor: pointer; border: 1.5px solid var(--navy);
+  }
+  #qreset { flex: 1; background: #fff; color: var(--navy); }
+  #qreset:hover { background: #eaf1fa; }
+  #toSteps { flex: 1.6; background: var(--navy); color: #fff; }
+  #toSteps:hover { background: #274b87; }
+  #toQuiz { display: none; width: 100%; margin-top: 8px; font-family: inherit; font-size: 13px;
+    font-weight: bold; border-radius: 9px; padding: 9px 0; cursor: pointer;
+    border: 1.5px dashed var(--navy); background: #fff; color: var(--navy); }
+  #toQuiz:hover { background: #eaf1fa; }
   @media (max-width: 640px) {
     header { padding: 7px 10px; }
     #src { display: none; }
@@ -122,12 +153,25 @@
       <div id="dots"></div>
     </div>
     <div id="caption"></div>
+    <div id="quizhint"></div>
     <div id="formula"></div>
-    <div id="controls">
-      <button id="prev">◀ 前へ</button>
-      <button id="replay">↻ もう一度</button>
-      <button id="next">次へ ▶</button>
+    <div id="ansrow">
+      <span id="anslabel">答え</span>
+      <input id="answer" type="text" inputmode="decimal" autocomplete="off" placeholder="?">
+      <button id="check">答え合わせ</button>
     </div>
+    <div id="controls" style="display:flex" >
+      <div id="stepctl" style="display:flex; gap:8px; flex:1">
+        <button id="prev">◀ 前へ</button>
+        <button id="replay">↻ もう一度</button>
+        <button id="next">次へ ▶</button>
+      </div>
+      <div id="quizctl" style="flex:1">
+        <button id="qreset">↻ 図をもどす</button>
+        <button id="toSteps">▶ 解説を見る</button>
+      </div>
+    </div>
+    <button id="toQuiz">✏️ 問題にもどる(自分で解く)</button>
     <div id="hint">キーボードの ← → でも操作できます</div>
   </div>
 </div>
@@ -364,6 +408,116 @@ const C2D = {
   ghost: "#9aa7b8",     // 補助・軌跡
   paper: "#fbfcfd",     // 背景
 };
+
+
+/* ===== src/core/hittest.js ===== */
+// ==== なぞり判定(純関数)。quizモードの region ヒットテスト ====
+// すべてワールド座標で判定する。座標変換(画面→ワールド)もここに置く。
+// エンジン非依存・DOM非依存なので node のテストでそのまま検証できる。
+"use strict";
+
+// 画面ピクセル → ワールド座標(canvas2d の makeG と逆変換)
+function screenToWorld(px, py, view) {
+  const x = (px - view.ox) / view.scale;
+  const y = view.yUp ? (view.oy - py) / view.scale : (py - view.oy) / view.scale;
+  return [x, y];
+}
+
+// 点が region の shape に含まれるか
+// shape: { kind:"rect", x,y,w,h } … x..x+w, y..y+h(向きは数値としてのみ扱う)
+//        { kind:"poly", pts:[[x,y],...] }
+//        { kind:"seg",  a:[x,y], b:[x,y], r }  … 線分から距離r以内
+function pointInShape(p, shape) {
+  if (!Array.isArray(p) || p.length < 2 || !shape || !Number.isFinite(p[0]) || !Number.isFinite(p[1])) return false;
+  if (shape.kind === "rect") {
+    const x0 = Math.min(shape.x, shape.x + shape.w), x1 = Math.max(shape.x, shape.x + shape.w);
+    const y0 = Math.min(shape.y, shape.y + shape.h), y1 = Math.max(shape.y, shape.y + shape.h);
+    return p[0] >= x0 && p[0] <= x1 && p[1] >= y0 && p[1] <= y1;
+  }
+  if (shape.kind === "poly") {
+    // ray casting
+    const pts = shape.pts;
+    if (!Array.isArray(pts) || pts.length < 3) return false;
+    let inside = false;
+    for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+      const xi = pts[i][0], yi = pts[i][1], xj = pts[j][0], yj = pts[j][1];
+      if (distToSeg(p, pts[j], pts[i]) <= 1e-9) return true; // 辺上も領域に含める
+      if ((yi > p[1]) !== (yj > p[1]) && p[0] < ((xj - xi) * (p[1] - yi)) / (yj - yi) + xi) inside = !inside;
+    }
+    return inside;
+  }
+  if (shape.kind === "seg") {
+    return distToSeg(p, shape.a, shape.b) <= (shape.r || 0.5);
+  }
+  return false;
+}
+
+function distToSeg(p, a, b) {
+  const vx = b[0] - a[0], vy = b[1] - a[1];
+  const wx = p[0] - a[0], wy = p[1] - a[1];
+  const c1 = vx * wx + vy * wy;
+  if (c1 <= 0) return Math.hypot(wx, wy);
+  const c2 = vx * vx + vy * vy;
+  if (c2 <= c1) return Math.hypot(p[0] - b[0], p[1] - b[1]);
+  const t = c1 / c2;
+  return Math.hypot(p[0] - (a[0] + t * vx), p[1] - (a[1] + t * vy));
+}
+
+function shapeSampleStep(shape) {
+  let span = 1;
+  if (shape.kind === "rect") span = Math.min(Math.abs(shape.w), Math.abs(shape.h));
+  else if (shape.kind === "poly" && Array.isArray(shape.pts) && shape.pts.length) {
+    const xs = shape.pts.map((p) => p[0]), ys = shape.pts.map((p) => p[1]);
+    span = Math.min(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys));
+  } else if (shape.kind === "seg") span = Math.max((shape.r || 0.5) * 2, 0.1);
+  return Math.max((Number.isFinite(span) && span > 0 ? span : 1) / 8, 0.02);
+}
+
+// PointerEvent の発生頻度に左右されないよう、軌跡を等間隔に再サンプリングする。
+// 戻り値は軌跡のうち shape 内にある長さの近似割合。
+function strokeHitScore(strokePts, shape) {
+  if (!Array.isArray(strokePts) || !strokePts.length) return 0;
+  if (strokePts.length === 1) return pointInShape(strokePts[0], shape) ? 1 : 0;
+  const step = shapeSampleStep(shape);
+  let insideLength = 0, totalLength = 0;
+  for (let i = 1; i < strokePts.length; i++) {
+    const a = strokePts[i - 1], b = strokePts[i];
+    const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    if (!Number.isFinite(len) || len <= 1e-9) continue;
+    const n = Math.min(256, Math.max(1, Math.ceil(len / step)));
+    const piece = len / n;
+    for (let j = 0; j < n; j++) {
+      const t = (j + 0.5) / n;
+      if (pointInShape([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t], shape)) insideLength += piece;
+    }
+    totalLength += len;
+  }
+  // 指がほぼ動かなかった場合はタップとして扱う。
+  if (totalLength <= 1e-9) return strokePts.some((p) => pointInShape(p, shape)) ? 1 : 0;
+  return insideLength / totalLength;
+}
+
+// ストローク(ワールド座標の点列)が region にヒットしたか。
+// タップは中ならヒット。なぞりは軌跡の過半が中ならヒット。
+function strokeHitsShape(strokePts, shape) {
+  return strokeHitScore(strokePts, shape) >= 0.5;
+}
+
+// ストロークに最もよくヒットする region を1つ返す(なければ null)
+function pickRegion(strokePts, regions) {
+  let best = null, bestScore = 0;
+  for (const r of regions) {
+    const score = strokeHitScore(strokePts, r.shape);
+    if (score < 0.5) continue;
+    if (score > bestScore) { best = r; bestScore = score; }
+  }
+  return best;
+}
+
+// node(テスト)用エクスポート
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = { screenToWorld, pointInShape, distToSeg, strokeHitScore, strokeHitsShape, pickRegion };
+}
 
 
 /* ===== src/render/three-helpers.js ===== */
@@ -701,6 +855,20 @@ function makeG(ctx, screen, view) {
   return G;
 }
 
+// region の shape(rect/poly/seg)を赤い点線で強調表示する(quizのなぞりフィードバック)
+function drawRegionHighlight(g, shape, alpha) {
+  const opts = { color: C2D.red, w: 3, dash: [7, 5], alpha };
+  if (shape.kind === "rect") {
+    g.poly([[shape.x, shape.y], [shape.x + shape.w, shape.y],
+            [shape.x + shape.w, shape.y + shape.h], [shape.x, shape.y + shape.h]],
+      { ...opts, fill: C2D.redFill, fillAlpha: alpha * 0.5 });
+  } else if (shape.kind === "poly") {
+    g.poly(shape.pts, { ...opts, fill: C2D.redFill, fillAlpha: alpha * 0.5 });
+  } else if (shape.kind === "seg") {
+    g.line(shape.a[0], shape.a[1], shape.b[0], shape.b[1], opts);
+  }
+}
+
 /* 2Dバックエンド: <canvas> を用意し、毎フレーム clear→draw する */
 function makeCanvas2DBackend(stageEl) {
   const canvas = document.createElement("canvas");
@@ -729,7 +897,7 @@ function makeCanvas2DBackend(stageEl) {
       const handle = builders[scn.type](scn.params);
       return { handle };
     },
-    frame(bctx, st) {
+    frame(bctx, st, overlay) {
       // 既定ビュー: シナリオの base.view を状態として補間したもの(st.view)を使う。
       // なければ画面中央・スケール1。
       const v = st.view || { ox: screen.w / 2, oy: screen.h / 2, scale: 24, yUp: false };
@@ -742,6 +910,11 @@ function makeCanvas2DBackend(stageEl) {
       const g = makeG(ctx, screen, view);
       g.clear();
       bctx.handle.draw(g, st, screen);
+      // quizモード: なぞられた region のハイライト(ビルダー非依存の上書き描画)
+      if (overlay && overlay.shape && overlay.alpha > 0.01) {
+        drawRegionHighlight(g, overlay.shape, overlay.alpha);
+      }
+      bctx.lastView = view; // 入力(画面→ワールド変換)用に公開
     },
     dispose() {},
   };
@@ -1069,6 +1242,40 @@ function makePlaneScenarios() {
         view: { ox: 45, oy: 200, scale: 28, yUp: true },
         d: 0, showTri: 1, showGraph: 1,
         gx0: 8.5, gy0: 0, gsx: 0.5, gsy: 0.42,
+      },
+      quiz: {
+        question: "長方形ABCD（横6cm・縦4cm）の周りを、点PがAからB→C→Dの順に動きます。三角形ABPのいちばん大きい面積は何cm²でしょう？",
+        answer: 12, answerLabel: "面積（cm²）",
+        state: { d: 0.1, showGraph: 0 },   // Pを少しだけ動かした状態から考えさせる
+        regions: [
+          { id: "edgeBC", label: "辺BC",
+            shape: { kind: "seg", a: [6, 0], b: [6, 4], r: 0.7 } },
+          { id: "edgeCD", label: "辺CD",
+            shape: { kind: "seg", a: [6, 4], b: [0, 4], r: 0.7 } },
+          { id: "edgeAB", label: "底辺AB",
+            shape: { kind: "seg", a: [0, 0], b: [6, 0], r: 0.7 } },
+        ],
+        hints: {
+          edgeBC: [
+            { kind: "ask", text: "PがBからCへ上がっていくと、三角形の「高さ」はどうなるかな。" },
+            { kind: "anime", caption: "Pが上がるほど高さが増えて、Cに着いたとき最大!",
+              steps: [{ dur: 2.4, state: { d: 10 / 16 } }] },
+            { kind: "formula", text: "最大の面積 ＝ 6 × 4 ÷ 2" },
+            { kind: "scenario" },
+          ],
+          edgeCD: [
+            { kind: "ask", text: "PがCからDへ動く間、高さは変わるかな。" },
+            { kind: "anime", caption: "高さは4cmのまま。面積は変わらず最大のまま!",
+              steps: [{ dur: 2.4, state: { d: 1 } }] },
+            { kind: "formula", text: "CD上はずっと 6 × 4 ÷ 2 ＝ 12（cm²）" },
+            { kind: "scenario" },
+          ],
+          edgeAB: [
+            { kind: "ask", text: "底辺ABの長さはいつも同じだね。面積が大きくなるには、何が大きくなればよいかな。" },
+            { kind: "formula", text: "面積 ＝ 底辺 × 高さ ÷ 2。底辺が同じなら、高さで決まる。" },
+            { kind: "scenario" },
+          ],
+        },
       },
       steps: [
         { dur: 1.4, caption: "長方形ABCD(横6cm・縦4cm)の周りを、点PがAを出発してB→C→Dの順に動きます。三角形ABPの面積は、どう変わっていく?", state: { d: 0, showTri: 1, showGraph: 0 } },
@@ -2694,6 +2901,38 @@ function makeRatioScenarios() {
         beamY: 2.3, fx: 6.5, tilt: 0,
         showBeam: 0, showFx: 0, showAns: 0, showRatio: 0,
       },
+      quiz: {
+        question: "4%の食塩水300gと、9%の食塩水200gを混ぜます。何%の食塩水になるでしょう?",
+        answer: 6, answerLabel: "濃さ（%）",
+        state: { showBeam: 1, tilt: 7 },   // おもりを下げて、真ん中支点でかたむいた状態から考えさせる
+        regions: [
+          { id: "shiten", label: "支点のあたり",
+            shape: { kind: "rect", x: 5.3, y: 1.2, w: 2.4, h: 1.3 } },
+          { id: "omoriL", label: "300gのおもり",
+            shape: { kind: "rect", x: 2.9, y: 0.5, w: 2.2, h: 1.9 } },
+          { id: "omoriR", label: "200gのおもり",
+            shape: { kind: "rect", x: 7.9, y: 0.5, w: 2.2, h: 1.9 } },
+        ],
+        hints: {
+          shiten: [
+            { kind: "ask", text: "てんびんがつり合う場所が、混ぜた濃さ。重い300gの側と軽い200gの側、どちらに近いかな。" },
+            { kind: "anime", caption: "支点を300gの側へ少しずらすと…つり合った! ここが答えの濃さ。",
+              steps: [{ dur: 2.0, state: { fx: 6, tilt: 0, showFx: 1 } }] },
+            { kind: "formula", text: "支点までの距離の比 2:3 は、重さの比 300:200＝3:2 の逆比" },
+            { kind: "scenario" },
+          ],
+          omoriL: [
+            { kind: "ask", text: "300gは重いおもり。つり合う場所は、重いおもりの近く? 遠く?" },
+            { kind: "formula", text: "重いほうの近くでつり合う → 答えは4%寄り" },
+            { kind: "scenario" },
+          ],
+          omoriR: [
+            { kind: "ask", text: "200gは軽いおもり。支点が近づくのは300gと200g、どっち?" },
+            { kind: "formula", text: "軽いほうからは遠くなる → 9%から離れて4%寄り" },
+            { kind: "scenario" },
+          ],
+        },
+      },
       steps: [
         { dur: 1.6, caption: "4%の食塩水300gと、9%の食塩水200gを混ぜます。何%の食塩水になるでしょう?" },
         { dur: 2.8, caption: "「てんびん図」で考えます。濃さの数直線の4と9に、食塩水を重さのおもりとしてぶら下げます。ためしに真ん中を支えてみると…300gの側にかたむいてしまいます。", state: { showBeam: 1, tilt: 7 } },
@@ -3045,7 +3284,8 @@ function makeSpeedScenarios() {
   const r1t = 12 / (6 + 4), r1d = 6 * r1t;
   const r2t = (12 * 3) / (6 + 4), r2d = 2 * 12 - 6 * r2t;
 
-  const baseView = { ox: 70, oy: 40, scale: 34, yUp: false };
+  // 高さ325pxでも、時間軸の上端（y=9.8）まで収まる縮尺。
+  const baseView = { ox: 70, oy: 40, scale: 28, yUp: false };
 
   return [
     {
@@ -3062,6 +3302,33 @@ function makeSpeedScenarios() {
         t: 0, roadY: 1.0, graphBase: 3.0, tScale: 3.4,
         gridX: 2, gridT: 0.5, tick: 12,
         showGraph: 1, showMeet: 1, meetLabel: "出会い",
+      },
+      quiz: {
+        question: "PQ間は12km。AさんはPから時速4kmで、BさんはQから時速6kmで、同時に向かい合って出発します。2人が出会うのは何時間後でしょう?",
+        answer: 1.2, answerLabel: "時間（時間）",
+        state: { t: 0, showGraph: 0, showMeet: 0 },
+        regions: [
+          { id: "road", label: "道",
+            shape: { kind: "rect", x: 0, y: 0.2, w: 12, h: 1.6 } },
+          { id: "graph", label: "グラフ",
+            shape: { kind: "rect", x: 0, y: 3, w: 12, h: 7 } },
+        ],
+        hints: {
+          road: [
+            { kind: "ask", text: "1時間たつと、2人の間は何kmちぢまるかな。Aは4km、Bは6km進むよ。" },
+            { kind: "anime", caption: "1時間動かすと、2人の間は合わせて10kmちぢまる。",
+              steps: [{ dur: 2.4, state: { t: 0.5 } }] },
+            { kind: "formula", text: "出会う時間 ＝ 12 ÷（4＋6）" },
+            { kind: "scenario" },
+          ],
+          graph: [
+            { kind: "ask", text: "グラフの2本の線が交わったところが「出会い」。線を出してみようか。" },
+            { kind: "anime", caption: "2本の線がだんだん近づいて…交わった所が出会う瞬間!",
+              steps: [{ dur: 2.6, state: { t: 0.6, showGraph: 1, showMeet: 1 } }] },
+            { kind: "formula", text: "12 ÷（4＋6）＝ 1.2（時間後）" },
+            { kind: "scenario" },
+          ],
+        },
       },
       steps: [
         { dur: 1.4, caption: "PQ間は12km。AさんはPから時速4kmで、BさんはQから時速6kmで、同時に向かい合って出発します。何時間後に出会う?", state: { t: 0, showGraph: 0, showMeet: 0 } },
@@ -3141,6 +3408,31 @@ function makeSpeedScenarios() {
         view: { ox: 150, oy: 185, scale: 30, yUp: true },
         front: -120, ms: 0.015,
         showGhost: 0, showDist: 0, showAns: 0,
+      },
+      quiz: {
+        question: "長さ200mの列車が、秒速20mで長さ600mの橋をわたります。わたり始めてから、わたり終わるまで何秒かかるでしょう?",
+        answer: 40, answerLabel: "時間（秒）",
+        state: { front: 0, showGhost: 1 },   // 「わたり始め」の瞬間から考えさせる
+        regions: [
+          { id: "bridge", label: "橋",
+            shape: { kind: "rect", x: 0, y: -1.4, w: 9, h: 1.6 } },
+          { id: "train", label: "列車",
+            shape: { kind: "rect", x: -3.2, y: 0, w: 3.4, h: 1.8 } },
+        ],
+        hints: {
+          bridge: [
+            { kind: "ask", text: "「わたり終わり」は、列車のどこが橋を出た瞬間かな。先頭? 最後尾?" },
+            { kind: "anime", caption: "最後尾が橋を出るまで動かすと…先頭は橋のむこう200m先!",
+              steps: [{ dur: 2.8, state: { front: 800, showDist: 1 } }] },
+            { kind: "formula", text: "先頭が進む道のり ＝ 橋600m ＋ 列車200m" },
+            { kind: "scenario" },
+          ],
+          train: [
+            { kind: "ask", text: "列車には長さが200mあるよ。先頭が橋を出ても、わたり終わりじゃないのはなぜ?" },
+            { kind: "formula", text: "時間 ＝（600＋200）÷ 20" },
+            { kind: "scenario" },
+          ],
+        },
       },
       steps: [
         { dur: 1.8, caption: "長さ200mの列車が、秒速20mで長さ600mの橋をわたります。わたり始めてから、わたり終わるまで何秒かかるでしょう?" },
@@ -3243,8 +3535,34 @@ function makeWordScenarios() {
       source: "文章題/つるかめ算。例: 合わせて10匹・足26本",
       params: { total: 10, legsA: 2, legsB: 4, legsSum: 26, ansB },
       base: {
-        view: { ox: 80, oy: 258, scale: 38, yUp: true },
+        view: { ox: 80, oy: 258, scale: 36, yUp: true },
         k: 0, showBase: 0, showGoal: 0, showAns: 0,
+      },
+      // ---- v2: 問題ファースト+なぞりヒント(docs/CONCEPT.md) ----
+      quiz: {
+        question: "ツルとカメが合わせて10匹います。足の数は全部で26本。カメは何匹いるでしょう?",
+        answer: 3, answerLabel: "カメの数（匹）",
+        state: { showBase: 1 },   // 面積図の土台(全部ツルの長方形)だけ見せて考えさせる
+        regions: [
+          { id: "baseRect", label: "下の長方形",
+            shape: { kind: "rect", x: 0, y: 0, w: 10, h: 2 } },
+          { id: "upperBand", label: "上のすき間",
+            shape: { kind: "rect", x: 0, y: 2, w: 10, h: 2.6 } },
+        ],
+        hints: {
+          baseRect: [
+            { kind: "ask", text: "全部がツルだと考えると、足は何本になるかな。" },
+            { kind: "formula", text: "2 × 10 = 20（本）。実際の26本より6本少ない。" },
+            { kind: "scenario" },
+          ],
+          upperBand: [
+            { kind: "ask", text: "ツル1匹をカメ1匹にかえると、足は何本ふえるかな。" },
+            { kind: "anime", caption: "1匹だけカメにかえると、足が2本ふえるね。",
+              steps: [{ dur: 1.6, state: { k: 1 } }] },
+            { kind: "formula", text: "（26 − 20）÷（4 − 2）= 3（匹）" },
+            { kind: "scenario" },
+          ],
+        },
       },
       steps: [
         { dur: 1.6, caption: "ツルとカメが合わせて10匹います。足の数は全部で26本。カメは何匹いるでしょう?" },
@@ -3330,7 +3648,32 @@ const App = {
   scnIdx: 0, stepIdx: 0,
   bctx: null, backend: null,
   from: null, to: null, cur: null, t: 1, dur: 1.4,
+  // ---- quizモード(v2: なぞる→段階ヒント。docs/CONCEPT.md) ----
+  mode: "steps",        // "quiz" | "steps"
+  quizState: null,      // quizモードの現在の到達状態(ヒントアニメで進む)
+  hintLevels: {},       // regionId → 何段階目まで見たか
+  animQueue: [],        // ヒントのマイクロアニメの残りステップ
+  overlay: null,        // { shape, until } なぞった領域のハイライト
+  stroke: null,         // なぞり中の点列(ワールド座標)
 };
+
+// ---- 進捗(localStorage。進捗記録のみに使用可・読み失敗は無視) ----
+const PROGRESS_KEY = "jukuse:progress";
+function loadProgress() {
+  try {
+    const p = JSON.parse(localStorage.getItem(PROGRESS_KEY));
+    return p && typeof p === "object" && !Array.isArray(p) ? p : {};
+  } catch (e) { return {}; }
+}
+function saveProgress(p) {
+  try { localStorage.setItem(PROGRESS_KEY, JSON.stringify(p)); } catch (e) { /* 保存できなくても本体は動く */ }
+}
+function markProgress(scnId, patch) {
+  const p = loadProgress();
+  p[scnId] = Object.assign(p[scnId] || { solved: false, tries: 0, hints: 0 }, patch);
+  saveProgress(p);
+  return p[scnId];
+}
 
 let stageEl, backends;
 
@@ -3384,9 +3727,139 @@ function loadScenario(i) {
   App.bctx = App.backend.load(scn, BUILDERS);
   App.cur = null;
   App.stepIdx = 0;
-  gotoStep(0, 0.01);
+  App.hintLevels = {};
+  App.animQueue = [];
+  App.overlay = null;
+  App.stroke = null;   // なぞり途中のシナリオ切替で古いストロークを持ち越さない
+  if (scn.quiz) enterQuizMode();       // quiz付きは「問題ファースト」
+  else { App.mode = "steps"; gotoStep(0, 0.01); }
+  syncModeUI();
   syncTabs();
   document.getElementById("src").textContent = scn.source || "";
+}
+
+// ---- quizモード ----
+function quizBaseState(scn) {
+  const s = deepClone(scn.base);
+  if (scn.quiz.state) assignState(s, scn.quiz.state);
+  return s;
+}
+
+// 注: hintLevels は「問題にもどる」でも維持する(仕様)。
+// 解説まで見た子が同じ場所をなぞったら、続きの深さから出すため。
+function enterQuizMode() {
+  const scn = App.scenarios[App.scnIdx];
+  App.mode = "quiz";
+  App.animQueue = [];
+  App.overlay = null;
+  App.stroke = null;
+  App.quizState = quizBaseState(scn);
+  App.to = deepClone(App.quizState);
+  App.from = App.cur ? deepClone(App.cur) : deepClone(App.to);
+  App.t = 0; App.dur = 0.6;
+  document.getElementById("stepchip").textContent = "問題";
+  document.getElementById("caption").textContent = scn.quiz.question;
+  document.getElementById("quizhint").textContent = "わからないときは、図の気になるところを指でなぞってみよう。";
+  const f = document.getElementById("formula");
+  f.textContent = ""; f.style.display = "none";
+  document.getElementById("dots").innerHTML = "";
+  const ans = document.getElementById("answer");
+  ans.value = "";
+  document.getElementById("anslabel").textContent = scn.quiz.answerLabel || "答え";
+  syncModeUI();
+}
+
+// UI表示のモード切替(quiz: なぞり+答え / steps: コマ送り)
+function syncModeUI() {
+  const scn = App.scenarios[App.scnIdx];
+  const quiz = App.mode === "quiz";
+  const hasQuiz = !!scn.quiz;
+  document.getElementById("stepctl").style.display = quiz ? "none" : "flex";
+  document.getElementById("quizctl").style.display = quiz ? "flex" : "none";
+  document.getElementById("quizhint").style.display = quiz ? "block" : "none";
+  document.getElementById("ansrow").style.display = quiz && scn.quiz && scn.quiz.answer != null ? "flex" : "none";
+  document.getElementById("toQuiz").style.display = !quiz && hasQuiz ? "block" : "none";
+}
+
+// なぞり(またはタップ)で region がヒットしたとき: 次の段階のヒントを出す
+function onRegionHit(region) {
+  const scn = App.scenarios[App.scnIdx];
+  const hints = (scn.quiz.hints || {})[region.id];
+  if (!hints || !hints.length) return;
+  const lv = Math.min((App.hintLevels[region.id] || 0) + 1, hints.length);
+  App.hintLevels[region.id] = lv;
+  const hint = hints[lv - 1];
+  App.overlay = { shape: region.shape, until: performance.now() + 1800 };
+  markProgress(scn.id, { hints: Math.max(lv, (loadProgress()[scn.id] || {}).hints || 0) });
+
+  const bubble = document.getElementById("quizhint");
+  const tag = `${region.label || "ここ"}(ヒント${lv}/${hints.length})`;
+  if (hint.kind === "ask") {
+    bubble.textContent = `💡 ${tag}: ${hint.text}`;
+  } else if (hint.kind === "anime") {
+    bubble.textContent = `💡 ${tag}: ${hint.caption || "動きをよく見て!"}`;
+    // アニメは常に問題の初期状態(quiz.state)から再生する(スキーマの前提。
+    // 別regionのアニメの続きから始まると逆向きに動いて混乱するため)
+    App.quizState = quizBaseState(scn);
+    App.animQueue = hint.steps.slice();
+    nextQuizAnim();
+  } else if (hint.kind === "formula") {
+    bubble.textContent = `💡 ${tag}: 式で書くと…`;
+    const f = document.getElementById("formula");
+    f.textContent = hint.text; f.style.display = "block";
+  } else if (hint.kind === "scenario") {
+    switchToSteps();
+  }
+}
+
+function nextQuizAnim() {
+  if (!App.animQueue.length) return;
+  const step = App.animQueue.shift();
+  assignState(App.quizState, step.state || {});
+  App.to = deepClone(App.quizState);
+  App.from = App.cur ? deepClone(App.cur) : deepClone(App.to);
+  App.t = 0;
+  App.dur = step.dur || 1.4;
+}
+
+function resetQuizFigure() {
+  const scn = App.scenarios[App.scnIdx];
+  App.animQueue = [];
+  App.quizState = quizBaseState(scn);
+  App.to = deepClone(App.quizState);
+  App.from = App.cur ? deepClone(App.cur) : deepClone(App.to);
+  App.t = 0; App.dur = 0.8;
+}
+
+function switchToSteps() {
+  App.mode = "steps";
+  App.animQueue = [];
+  App.overlay = null;
+  App.stroke = null;
+  App.stepIdx = 0;
+  gotoStep(0, 0.8);
+  syncModeUI();
+}
+
+// 答え合わせ(演習): 正解→記録、まちがい→なぞり導線へ
+function checkAnswer() {
+  const scn = App.scenarios[App.scnIdx];
+  // 全角数字・全角小数点も受け付ける(子どものタブレット入力対策)
+  const raw = document.getElementById("answer").value.trim()
+    .replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0))
+    .replace(/[。．]/g, ".").replace(/[−ー]/g, "-");
+  const bubble = document.getElementById("quizhint");
+  if (!/^-?\d+(\.\d+)?$/.test(raw)) { bubble.textContent = "数字を入れてから「答え合わせ」を押してね。"; return; }
+  const val = parseFloat(raw);
+  const pr = markProgress(scn.id, {});
+  if (Math.abs(val - scn.quiz.answer) < 1e-9) {
+    markProgress(scn.id, { solved: true, tries: pr.tries + 1 });
+    bubble.textContent = `🎉 正解! ${scn.quiz.answer}${scn.quiz.answerLabel ? "(" + scn.quiz.answerLabel + ")" : ""}。「解説を見る」で確かめよう。`;
+    renderProblemTabs(); syncTabs();
+  } else {
+    markProgress(scn.id, { tries: pr.tries + 1 });
+    bubble.textContent = "おしい! 図の「あやしいな」と思うところを指でなぞってみよう。ヒントが出るよ。";
+  }
 }
 
 function gotoStep(idx, dur) {
@@ -3413,6 +3886,44 @@ function replayStep() {
   const idx = App.stepIdx;
   App.cur = idx === 0 ? deepClone(scn.base) : mergedState(scn, idx - 1);
   gotoStep(idx);
+}
+
+// ---- なぞり入力(2Dのみ)。画面座標→ワールド座標に直して蓄積 ----
+function strokePoint(ev) {
+  if (!App.bctx || !App.bctx.lastView) return null;
+  const rect = stageEl.getBoundingClientRect();
+  return screenToWorld(ev.clientX - rect.left, ev.clientY - rect.top, App.bctx.lastView);
+}
+function bindPointer() {
+  let activeId = null; // 開始したポインターだけを追う(マルチタッチの混線防止)
+  stageEl.addEventListener("pointerdown", (ev) => {
+    if (App.mode !== "quiz" || App.backend.kind !== "canvas2d" || activeId != null) return;
+    const p = strokePoint(ev);
+    if (!p) return;
+    App.stroke = [p];
+    activeId = ev.pointerId;
+    try { stageEl.setPointerCapture(ev.pointerId); } catch (e) { /* 合成イベント等では失敗してよい */ }
+  });
+  stageEl.addEventListener("pointermove", (ev) => {
+    if (!App.stroke || ev.pointerId !== activeId) return;
+    const p = strokePoint(ev);
+    if (!p) return;
+    const last = App.stroke[App.stroke.length - 1];
+    const minStep = 6 / (App.bctx.lastView.scale || 24); // 6pxごとにサンプリング
+    if (Math.hypot(p[0] - last[0], p[1] - last[1]) >= minStep) App.stroke.push(p);
+  });
+  const finish = (ev) => {
+    if (ev.pointerId !== activeId) return;
+    activeId = null;
+    if (!App.stroke) return;
+    const scn = App.scenarios[App.scnIdx];
+    const stroke = App.stroke; App.stroke = null;
+    if (App.mode !== "quiz" || !scn.quiz || !scn.quiz.regions) return;
+    const region = pickRegion(stroke, scn.quiz.regions);
+    if (region) onRegionHit(region);
+  };
+  stageEl.addEventListener("pointerup", finish);
+  stageEl.addEventListener("pointercancel", (ev) => { if (ev.pointerId === activeId) { activeId = null; App.stroke = null; } });
 }
 
 // ---- 単元(unit) → 問題(problem) の2階層タブ ----
@@ -3445,10 +3956,13 @@ function renderProblemTabs() {
   const unit = App.units.find((u) => u.id === uid);
   const row = document.getElementById("tabs");
   row.innerHTML = "";
+  const progress = loadProgress();
   unit.items.forEach((it) => {
     const b = document.createElement("button");
     b.className = "tab";
-    b.textContent = it.name;
+    const scn = App.scenarios[it.scnIndex];
+    const solved = progress[scn.id] && progress[scn.id].solved;
+    b.textContent = (solved ? "✓ " : "") + it.name;
     b.onclick = () => loadScenario(it.scnIndex);
     row.appendChild(b);
   });
@@ -3486,10 +4000,20 @@ function init() {
     if (App.stepIdx > 0) gotoStep(App.stepIdx - 1, 1.0);
   };
   document.getElementById("replay").onclick = replayStep;
+  document.getElementById("toSteps").onclick = switchToSteps;
+  document.getElementById("toQuiz").onclick = enterQuizMode;
+  document.getElementById("qreset").onclick = resetQuizFigure;
+  document.getElementById("check").onclick = checkAnswer;
+  document.getElementById("answer").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") checkAnswer();
+  });
   window.addEventListener("keydown", (e) => {
+    if (e.target && e.target.tagName === "INPUT") return;
+    if (App.mode !== "steps") return;
     if (e.key === "ArrowRight") document.getElementById("next").click();
     if (e.key === "ArrowLeft") document.getElementById("prev").click();
   });
+  bindPointer();
 
   loadScenario(0);
 
@@ -3499,8 +4023,16 @@ function init() {
     const dt = Math.min((now - last) / 1000, 0.05);
     last = now;
     if (App.t < 1) App.t = Math.min(1, App.t + dt / App.dur);
+    else if (App.mode === "quiz" && App.animQueue.length) nextQuizAnim(); // ヒントアニメの次のコマへ
     App.cur = lerpStates(App.from, App.to, easeInOut(App.t));
-    App.backend.frame(App.bctx, App.cur);
+    // なぞりハイライト(時間で消える)
+    let overlay = null;
+    if (App.overlay) {
+      const remain = App.overlay.until - now;
+      if (remain <= 0) App.overlay = null;
+      else overlay = { shape: App.overlay.shape, alpha: Math.min(1, remain / 600) * 0.9 };
+    }
+    App.backend.frame(App.bctx, App.cur, overlay);
   };
   requestAnimationFrame(loop);
 }

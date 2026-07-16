@@ -10,7 +10,8 @@ function makeSpeedScenarios() {
   const r1t = 12 / (6 + 4), r1d = 6 * r1t;
   const r2t = (12 * 3) / (6 + 4), r2d = 2 * 12 - 6 * r2t;
 
-  const baseView = { ox: 70, oy: 40, scale: 34, yUp: false };
+  // 高さ325pxでも、時間軸の上端（y=9.8）まで収まる縮尺。
+  const baseView = { ox: 70, oy: 40, scale: 28, yUp: false };
 
   return [
     {
@@ -41,8 +42,8 @@ function makeSpeedScenarios() {
         hints: {
           road: [
             { kind: "ask", text: "1時間たつと、2人の間は何kmちぢまるかな。Aは4km、Bは6km進むよ。" },
-            { kind: "anime", caption: "動かしてみよう。2人合わせて1時間に10kmずつ近づいていく。",
-              steps: [{ dur: 2.4, state: { t: 0.3 } }] },
+            { kind: "anime", caption: "1時間動かすと、2人の間は合わせて10kmちぢまる。",
+              steps: [{ dur: 2.4, state: { t: 0.5 } }] },
             { kind: "formula", text: "出会う時間 ＝ 12 ÷（4＋6）" },
             { kind: "scenario" },
           ],

@@ -159,6 +159,9 @@ function onRegionHit(region) {
     bubble.textContent = `💡 ${tag}: ${hint.text}`;
   } else if (hint.kind === "anime") {
     bubble.textContent = `💡 ${tag}: ${hint.caption || "動きをよく見て!"}`;
+    // アニメは常に問題の初期状態(quiz.state)から再生する(スキーマの前提。
+    // 別regionのアニメの続きから始まると逆向きに動いて混乱するため)
+    App.quizState = quizBaseState(scn);
     App.animQueue = hint.steps.slice();
     nextQuizAnim();
   } else if (hint.kind === "formula") {

@@ -313,7 +313,16 @@ console.log("PYRAMID VOLUME TESTS DONE");
 }
 console.log("STREAM/PASS TESTS DONE");
 
-// ---------- 18. v2: なぞり判定(hittest) ----------
+// ---------- 18. v2: quiz 4問の答え ----------
+{
+  ok(near(6 * 4 / 2, 12), "点の移動: 三角形ABPの最大面積 = 12cm²");
+  ok(near((4 * 300 + 9 * 200) / (300 + 200), 6), "食塩水: 混ぜた濃さ = 6%");
+  ok(near(12 / (4 + 6), 1.2), "出会い算: 出会うまで = 1.2時間");
+  ok(near((600 + 200) / 20, 40), "通過算: 橋をわたり終わるまで = 40秒");
+}
+console.log("QUIZ ANSWER TESTS DONE");
+
+// ---------- 19. v2: なぞり判定(hittest) ----------
 {
   const H = require("../src/core/hittest.js");
   // 画面→ワールド変換(yUp両対応)
