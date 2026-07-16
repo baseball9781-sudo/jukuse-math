@@ -328,6 +328,7 @@ console.log("STREAM/PASS TESTS DONE");
   ok(!H.pointInShape([5, 1], { kind: "rect", x: 0, y: 2, w: 10, h: 2 }), "rect: 外は false");
   ok(H.pointInShape([1, 1], { kind: "poly", pts: [[0, 0], [3, 0], [0, 3]] }), "poly: 中は true");
   ok(!H.pointInShape([2.6, 2.6], { kind: "poly", pts: [[0, 0], [3, 0], [0, 3]] }), "poly: 外は false");
+  ok(H.pointInShape([1.5, 1.5], { kind: "poly", pts: [[0, 0], [3, 0], [0, 3]] }), "poly: 辺上は true");
   ok(H.pointInShape([3, 0.3], { kind: "seg", a: [0, 0], b: [6, 0], r: 0.5 }), "seg: 近くは true");
   ok(!H.pointInShape([3, 0.8], { kind: "seg", a: [0, 0], b: [6, 0], r: 0.5 }), "seg: 遠くは false");
   // ストローク判定: タップ(1点)と、なぞり(過半数ルール)
@@ -336,6 +337,12 @@ console.log("STREAM/PASS TESTS DONE");
   ok(H.strokeHitsShape(trace, { kind: "rect", x: 0, y: 2, w: 10, h: 2 }), "なぞり(過半数)でヒット");
   const miss = [[0,9],[2,9],[4,9],[6,9],[8,3],[10,9],[12,9]];  // 7点中1点だけ中
   ok(!H.strokeHitsShape(miss, { kind: "rect", x: 0, y: 2, w: 10, h: 2 }), "かすっただけではヒットしない");
+  // イベント点の密度ではなく軌跡の長さで判定する。同じ線なら結果も同じ。
+  const band = { kind: "rect", x: 0, y: 0, w: 10, h: 2 };
+  ok(H.strokeHitsShape([[-1, 1], [11, 1]], band), "両端が外でも、領域を横切る線を見逃さない");
+  const uneven = [[-1, 1], [0, 1], [0.01, 1], [0.02, 1], [0.03, 1], [11, 1]];
+  ok(near(H.strokeHitScore([[-1, 1], [11, 1]], band), H.strokeHitScore(uneven, band), 0.02),
+    "イベント点の偏りでスコアが変わらない");
   // pickRegion: よりよく重なる region を選ぶ
   const regions = [
     { id: "a", shape: { kind: "rect", x: 0, y: 0, w: 10, h: 2 } },

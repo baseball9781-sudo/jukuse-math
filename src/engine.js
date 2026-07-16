@@ -21,7 +21,10 @@ const App = {
 // ---- 進捗(localStorage。進捗記録のみに使用可・読み失敗は無視) ----
 const PROGRESS_KEY = "jukuse:progress";
 function loadProgress() {
-  try { return JSON.parse(localStorage.getItem(PROGRESS_KEY)) || {}; } catch (e) { return {}; }
+  try {
+    const p = JSON.parse(localStorage.getItem(PROGRESS_KEY));
+    return p && typeof p === "object" && !Array.isArray(p) ? p : {};
+  } catch (e) { return {}; }
 }
 function saveProgress(p) {
   try { localStorage.setItem(PROGRESS_KEY, JSON.stringify(p)); } catch (e) { /* 保存できなくても本体は動く */ }
@@ -88,6 +91,7 @@ function loadScenario(i) {
   App.hintLevels = {};
   App.animQueue = [];
   App.overlay = null;
+  App.stroke = null;   // なぞり途中のシナリオ切替で古いストロークを持ち越さない
   if (scn.quiz) enterQuizMode();       // quiz付きは「問題ファースト」
   else { App.mode = "steps"; gotoStep(0, 0.01); }
   syncModeUI();
@@ -102,11 +106,14 @@ function quizBaseState(scn) {
   return s;
 }
 
+// 注: hintLevels は「問題にもどる」でも維持する(仕様)。
+// 解説まで見た子が同じ場所をなぞったら、続きの深さから出すため。
 function enterQuizMode() {
   const scn = App.scenarios[App.scnIdx];
   App.mode = "quiz";
   App.animQueue = [];
   App.overlay = null;
+  App.stroke = null;
   App.quizState = quizBaseState(scn);
   App.to = deepClone(App.quizState);
   App.from = App.cur ? deepClone(App.cur) : deepClone(App.to);
@@ -186,6 +193,7 @@ function switchToSteps() {
   App.mode = "steps";
   App.animQueue = [];
   App.overlay = null;
+  App.stroke = null;
   App.stepIdx = 0;
   gotoStep(0, 0.8);
   syncModeUI();
@@ -194,10 +202,13 @@ function switchToSteps() {
 // 答え合わせ(演習): 正解→記録、まちがい→なぞり導線へ
 function checkAnswer() {
   const scn = App.scenarios[App.scnIdx];
-  const raw = document.getElementById("answer").value.trim().replace("。", ".").replace("．", ".");
-  const val = parseFloat(raw);
+  // 全角数字・全角小数点も受け付ける(子どものタブレット入力対策)
+  const raw = document.getElementById("answer").value.trim()
+    .replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0))
+    .replace(/[。．]/g, ".").replace(/[−ー]/g, "-");
   const bubble = document.getElementById("quizhint");
-  if (raw === "" || isNaN(val)) { bubble.textContent = "数字を入れてから「答え合わせ」を押してね。"; return; }
+  if (!/^-?\d+(\.\d+)?$/.test(raw)) { bubble.textContent = "数字を入れてから「答え合わせ」を押してね。"; return; }
+  const val = parseFloat(raw);
   const pr = markProgress(scn.id, {});
   if (Math.abs(val - scn.quiz.answer) < 1e-9) {
     markProgress(scn.id, { solved: true, tries: pr.tries + 1 });
@@ -242,13 +253,17 @@ function strokePoint(ev) {
   return screenToWorld(ev.clientX - rect.left, ev.clientY - rect.top, App.bctx.lastView);
 }
 function bindPointer() {
+  let activeId = null; // 開始したポインターだけを追う(マルチタッチの混線防止)
   stageEl.addEventListener("pointerdown", (ev) => {
-    if (App.mode !== "quiz" || App.backend.kind !== "canvas2d") return;
+    if (App.mode !== "quiz" || App.backend.kind !== "canvas2d" || activeId != null) return;
     const p = strokePoint(ev);
-    if (p) { App.stroke = [p]; stageEl.setPointerCapture(ev.pointerId); }
+    if (!p) return;
+    App.stroke = [p];
+    activeId = ev.pointerId;
+    try { stageEl.setPointerCapture(ev.pointerId); } catch (e) { /* 合成イベント等では失敗してよい */ }
   });
   stageEl.addEventListener("pointermove", (ev) => {
-    if (!App.stroke) return;
+    if (!App.stroke || ev.pointerId !== activeId) return;
     const p = strokePoint(ev);
     if (!p) return;
     const last = App.stroke[App.stroke.length - 1];
@@ -256,15 +271,17 @@ function bindPointer() {
     if (Math.hypot(p[0] - last[0], p[1] - last[1]) >= minStep) App.stroke.push(p);
   });
   const finish = (ev) => {
+    if (ev.pointerId !== activeId) return;
+    activeId = null;
     if (!App.stroke) return;
     const scn = App.scenarios[App.scnIdx];
     const stroke = App.stroke; App.stroke = null;
-    if (!scn.quiz || !scn.quiz.regions) return;
+    if (App.mode !== "quiz" || !scn.quiz || !scn.quiz.regions) return;
     const region = pickRegion(stroke, scn.quiz.regions);
     if (region) onRegionHit(region);
   };
   stageEl.addEventListener("pointerup", finish);
-  stageEl.addEventListener("pointercancel", () => { App.stroke = null; });
+  stageEl.addEventListener("pointercancel", (ev) => { if (ev.pointerId === activeId) { activeId = null; App.stroke = null; } });
 }
 
 // ---- 単元(unit) → 問題(problem) の2階層タブ ----

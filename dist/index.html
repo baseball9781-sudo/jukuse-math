@@ -428,6 +428,7 @@ function screenToWorld(px, py, view) {
 //        { kind:"poly", pts:[[x,y],...] }
 //        { kind:"seg",  a:[x,y], b:[x,y], r }  … 線分から距離r以内
 function pointInShape(p, shape) {
+  if (!Array.isArray(p) || p.length < 2 || !shape || !Number.isFinite(p[0]) || !Number.isFinite(p[1])) return false;
   if (shape.kind === "rect") {
     const x0 = Math.min(shape.x, shape.x + shape.w), x1 = Math.max(shape.x, shape.x + shape.w);
     const y0 = Math.min(shape.y, shape.y + shape.h), y1 = Math.max(shape.y, shape.y + shape.h);
@@ -436,9 +437,11 @@ function pointInShape(p, shape) {
   if (shape.kind === "poly") {
     // ray casting
     const pts = shape.pts;
+    if (!Array.isArray(pts) || pts.length < 3) return false;
     let inside = false;
     for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
       const xi = pts[i][0], yi = pts[i][1], xj = pts[j][0], yj = pts[j][1];
+      if (distToSeg(p, pts[j], pts[i]) <= 1e-9) return true; // 辺上も領域に含める
       if ((yi > p[1]) !== (yj > p[1]) && p[0] < ((xj - xi) * (p[1] - yi)) / (yj - yi) + xi) inside = !inside;
     }
     return inside;
@@ -460,24 +463,52 @@ function distToSeg(p, a, b) {
   return Math.hypot(p[0] - (a[0] + t * vx), p[1] - (a[1] + t * vy));
 }
 
+function shapeSampleStep(shape) {
+  let span = 1;
+  if (shape.kind === "rect") span = Math.min(Math.abs(shape.w), Math.abs(shape.h));
+  else if (shape.kind === "poly" && Array.isArray(shape.pts) && shape.pts.length) {
+    const xs = shape.pts.map((p) => p[0]), ys = shape.pts.map((p) => p[1]);
+    span = Math.min(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys));
+  } else if (shape.kind === "seg") span = Math.max((shape.r || 0.5) * 2, 0.1);
+  return Math.max((Number.isFinite(span) && span > 0 ? span : 1) / 8, 0.02);
+}
+
+// PointerEvent の発生頻度に左右されないよう、軌跡を等間隔に再サンプリングする。
+// 戻り値は軌跡のうち shape 内にある長さの近似割合。
+function strokeHitScore(strokePts, shape) {
+  if (!Array.isArray(strokePts) || !strokePts.length) return 0;
+  if (strokePts.length === 1) return pointInShape(strokePts[0], shape) ? 1 : 0;
+  const step = shapeSampleStep(shape);
+  let insideLength = 0, totalLength = 0;
+  for (let i = 1; i < strokePts.length; i++) {
+    const a = strokePts[i - 1], b = strokePts[i];
+    const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    if (!Number.isFinite(len) || len <= 1e-9) continue;
+    const n = Math.min(256, Math.max(1, Math.ceil(len / step)));
+    const piece = len / n;
+    for (let j = 0; j < n; j++) {
+      const t = (j + 0.5) / n;
+      if (pointInShape([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t], shape)) insideLength += piece;
+    }
+    totalLength += len;
+  }
+  // 指がほぼ動かなかった場合はタップとして扱う。
+  if (totalLength <= 1e-9) return strokePts.some((p) => pointInShape(p, shape)) ? 1 : 0;
+  return insideLength / totalLength;
+}
+
 // ストローク(ワールド座標の点列)が region にヒットしたか。
-// タップ(点数が少ない)は1点でも中ならヒット。なぞりは過半数の点が中ならヒット。
+// タップは中ならヒット。なぞりは軌跡の過半が中ならヒット。
 function strokeHitsShape(strokePts, shape) {
-  if (!strokePts.length) return false;
-  let inside = 0;
-  for (const p of strokePts) if (pointInShape(p, shape)) inside++;
-  if (strokePts.length <= 4) return inside >= 1;      // タップ
-  return inside / strokePts.length >= 0.5;            // なぞり
+  return strokeHitScore(strokePts, shape) >= 0.5;
 }
 
 // ストロークに最もよくヒットする region を1つ返す(なければ null)
 function pickRegion(strokePts, regions) {
   let best = null, bestScore = 0;
   for (const r of regions) {
-    if (!strokeHitsShape(strokePts, r.shape)) continue;
-    let inside = 0;
-    for (const p of strokePts) if (pointInShape(p, r.shape)) inside++;
-    const score = inside / strokePts.length;
+    const score = strokeHitScore(strokePts, r.shape);
+    if (score < 0.5) continue;
     if (score > bestScore) { best = r; bestScore = score; }
   }
   return best;
@@ -485,7 +516,7 @@ function pickRegion(strokePts, regions) {
 
 // node(テスト)用エクスポート
 if (typeof module !== "undefined" && module.exports) {
-  module.exports = { screenToWorld, pointInShape, distToSeg, strokeHitsShape, pickRegion };
+  module.exports = { screenToWorld, pointInShape, distToSeg, strokeHitScore, strokeHitsShape, pickRegion };
 }
 
 
@@ -3385,13 +3416,13 @@ function makeWordScenarios() {
       source: "文章題/つるかめ算。例: 合わせて10匹・足26本",
       params: { total: 10, legsA: 2, legsB: 4, legsSum: 26, ansB },
       base: {
-        view: { ox: 80, oy: 258, scale: 38, yUp: true },
+        view: { ox: 80, oy: 258, scale: 36, yUp: true },
         k: 0, showBase: 0, showGoal: 0, showAns: 0,
       },
       // ---- v2: 問題ファースト+なぞりヒント(docs/CONCEPT.md) ----
       quiz: {
         question: "ツルとカメが合わせて10匹います。足の数は全部で26本。カメは何匹いるでしょう?",
-        answer: 3, answerLabel: "カメ(匹)",
+        answer: 3, answerLabel: "カメの数（匹）",
         state: { showBase: 1 },   // 面積図の土台(全部ツルの長方形)だけ見せて考えさせる
         regions: [
           { id: "baseRect", label: "下の長方形",
@@ -3401,15 +3432,15 @@ function makeWordScenarios() {
         ],
         hints: {
           baseRect: [
-            { kind: "ask", text: "この長方形は「全部ツルだったら」の足の数。2本×10匹で何本?" },
-            { kind: "formula", text: "全部ツルなら 2 × 10 = 20本。でも実際は26本…6本たりない!" },
+            { kind: "ask", text: "全部がツルだと考えると、足は何本になるかな。" },
+            { kind: "formula", text: "2 × 10 = 20（本）。実際の26本より6本少ない。" },
             { kind: "scenario" },
           ],
           upperBand: [
-            { kind: "ask", text: "たりない6本は、この「すき間」にかくれているよ。ツル1匹をカメに交換すると、足は何本ふえる?" },
-            { kind: "anime", caption: "ためしに1匹だけカメに交換してみると…足が2本ふえた!",
+            { kind: "ask", text: "ツル1匹をカメ1匹にかえると、足は何本ふえるかな。" },
+            { kind: "anime", caption: "1匹だけカメにかえると、足が2本ふえるね。",
               steps: [{ dur: 1.6, state: { k: 1 } }] },
-            { kind: "formula", text: "カメの数 = (26 − 20) ÷ (4 − 2) = 3匹" },
+            { kind: "formula", text: "（26 − 20）÷（4 − 2）= 3（匹）" },
             { kind: "scenario" },
           ],
         },
@@ -3510,7 +3541,10 @@ const App = {
 // ---- 進捗(localStorage。進捗記録のみに使用可・読み失敗は無視) ----
 const PROGRESS_KEY = "jukuse:progress";
 function loadProgress() {
-  try { return JSON.parse(localStorage.getItem(PROGRESS_KEY)) || {}; } catch (e) { return {}; }
+  try {
+    const p = JSON.parse(localStorage.getItem(PROGRESS_KEY));
+    return p && typeof p === "object" && !Array.isArray(p) ? p : {};
+  } catch (e) { return {}; }
 }
 function saveProgress(p) {
   try { localStorage.setItem(PROGRESS_KEY, JSON.stringify(p)); } catch (e) { /* 保存できなくても本体は動く */ }
@@ -3577,6 +3611,7 @@ function loadScenario(i) {
   App.hintLevels = {};
   App.animQueue = [];
   App.overlay = null;
+  App.stroke = null;   // なぞり途中のシナリオ切替で古いストロークを持ち越さない
   if (scn.quiz) enterQuizMode();       // quiz付きは「問題ファースト」
   else { App.mode = "steps"; gotoStep(0, 0.01); }
   syncModeUI();
@@ -3591,11 +3626,14 @@ function quizBaseState(scn) {
   return s;
 }
 
+// 注: hintLevels は「問題にもどる」でも維持する(仕様)。
+// 解説まで見た子が同じ場所をなぞったら、続きの深さから出すため。
 function enterQuizMode() {
   const scn = App.scenarios[App.scnIdx];
   App.mode = "quiz";
   App.animQueue = [];
   App.overlay = null;
+  App.stroke = null;
   App.quizState = quizBaseState(scn);
   App.to = deepClone(App.quizState);
   App.from = App.cur ? deepClone(App.cur) : deepClone(App.to);
@@ -3675,6 +3713,7 @@ function switchToSteps() {
   App.mode = "steps";
   App.animQueue = [];
   App.overlay = null;
+  App.stroke = null;
   App.stepIdx = 0;
   gotoStep(0, 0.8);
   syncModeUI();
@@ -3683,10 +3722,13 @@ function switchToSteps() {
 // 答え合わせ(演習): 正解→記録、まちがい→なぞり導線へ
 function checkAnswer() {
   const scn = App.scenarios[App.scnIdx];
-  const raw = document.getElementById("answer").value.trim().replace("。", ".").replace("．", ".");
-  const val = parseFloat(raw);
+  // 全角数字・全角小数点も受け付ける(子どものタブレット入力対策)
+  const raw = document.getElementById("answer").value.trim()
+    .replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0))
+    .replace(/[。．]/g, ".").replace(/[−ー]/g, "-");
   const bubble = document.getElementById("quizhint");
-  if (raw === "" || isNaN(val)) { bubble.textContent = "数字を入れてから「答え合わせ」を押してね。"; return; }
+  if (!/^-?\d+(\.\d+)?$/.test(raw)) { bubble.textContent = "数字を入れてから「答え合わせ」を押してね。"; return; }
+  const val = parseFloat(raw);
   const pr = markProgress(scn.id, {});
   if (Math.abs(val - scn.quiz.answer) < 1e-9) {
     markProgress(scn.id, { solved: true, tries: pr.tries + 1 });
@@ -3731,13 +3773,17 @@ function strokePoint(ev) {
   return screenToWorld(ev.clientX - rect.left, ev.clientY - rect.top, App.bctx.lastView);
 }
 function bindPointer() {
+  let activeId = null; // 開始したポインターだけを追う(マルチタッチの混線防止)
   stageEl.addEventListener("pointerdown", (ev) => {
-    if (App.mode !== "quiz" || App.backend.kind !== "canvas2d") return;
+    if (App.mode !== "quiz" || App.backend.kind !== "canvas2d" || activeId != null) return;
     const p = strokePoint(ev);
-    if (p) { App.stroke = [p]; stageEl.setPointerCapture(ev.pointerId); }
+    if (!p) return;
+    App.stroke = [p];
+    activeId = ev.pointerId;
+    try { stageEl.setPointerCapture(ev.pointerId); } catch (e) { /* 合成イベント等では失敗してよい */ }
   });
   stageEl.addEventListener("pointermove", (ev) => {
-    if (!App.stroke) return;
+    if (!App.stroke || ev.pointerId !== activeId) return;
     const p = strokePoint(ev);
     if (!p) return;
     const last = App.stroke[App.stroke.length - 1];
@@ -3745,15 +3791,17 @@ function bindPointer() {
     if (Math.hypot(p[0] - last[0], p[1] - last[1]) >= minStep) App.stroke.push(p);
   });
   const finish = (ev) => {
+    if (ev.pointerId !== activeId) return;
+    activeId = null;
     if (!App.stroke) return;
     const scn = App.scenarios[App.scnIdx];
     const stroke = App.stroke; App.stroke = null;
-    if (!scn.quiz || !scn.quiz.regions) return;
+    if (App.mode !== "quiz" || !scn.quiz || !scn.quiz.regions) return;
     const region = pickRegion(stroke, scn.quiz.regions);
     if (region) onRegionHit(region);
   };
   stageEl.addEventListener("pointerup", finish);
-  stageEl.addEventListener("pointercancel", () => { App.stroke = null; });
+  stageEl.addEventListener("pointercancel", (ev) => { if (ev.pointerId === activeId) { activeId = null; App.stroke = null; } });
 }
 
 // ---- 単元(unit) → 問題(problem) の2階層タブ ----

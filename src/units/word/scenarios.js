@@ -10,13 +10,13 @@ function makeWordScenarios() {
       source: "文章題/つるかめ算。例: 合わせて10匹・足26本",
       params: { total: 10, legsA: 2, legsB: 4, legsSum: 26, ansB },
       base: {
-        view: { ox: 80, oy: 258, scale: 38, yUp: true },
+        view: { ox: 80, oy: 258, scale: 36, yUp: true },
         k: 0, showBase: 0, showGoal: 0, showAns: 0,
       },
       // ---- v2: 問題ファースト+なぞりヒント(docs/CONCEPT.md) ----
       quiz: {
         question: "ツルとカメが合わせて10匹います。足の数は全部で26本。カメは何匹いるでしょう?",
-        answer: 3, answerLabel: "カメ(匹)",
+        answer: 3, answerLabel: "カメの数（匹）",
         state: { showBase: 1 },   // 面積図の土台(全部ツルの長方形)だけ見せて考えさせる
         regions: [
           { id: "baseRect", label: "下の長方形",
@@ -26,15 +26,15 @@ function makeWordScenarios() {
         ],
         hints: {
           baseRect: [
-            { kind: "ask", text: "この長方形は「全部ツルだったら」の足の数。2本×10匹で何本?" },
-            { kind: "formula", text: "全部ツルなら 2 × 10 = 20本。でも実際は26本…6本たりない!" },
+            { kind: "ask", text: "全部がツルだと考えると、足は何本になるかな。" },
+            { kind: "formula", text: "2 × 10 = 20（本）。実際の26本より6本少ない。" },
             { kind: "scenario" },
           ],
           upperBand: [
-            { kind: "ask", text: "たりない6本は、この「すき間」にかくれているよ。ツル1匹をカメに交換すると、足は何本ふえる?" },
-            { kind: "anime", caption: "ためしに1匹だけカメに交換してみると…足が2本ふえた!",
+            { kind: "ask", text: "ツル1匹をカメ1匹にかえると、足は何本ふえるかな。" },
+            { kind: "anime", caption: "1匹だけカメにかえると、足が2本ふえるね。",
               steps: [{ dur: 1.6, state: { k: 1 } }] },
-            { kind: "formula", text: "カメの数 = (26 − 20) ÷ (4 − 2) = 3匹" },
+            { kind: "formula", text: "（26 − 20）÷（4 − 2）= 3（匹）" },
             { kind: "scenario" },
           ],
         },
