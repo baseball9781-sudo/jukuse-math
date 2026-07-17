@@ -128,6 +128,31 @@
     font-weight: bold; border-radius: 9px; padding: 9px 0; cursor: pointer;
     border: 1.5px dashed var(--navy); background: #fff; color: var(--navy); }
   #toQuiz:hover { background: #eaf1fa; }
+
+  /* ---- solveモード(v3: なぞって解く) ---- */
+  #exprList { display: none; margin-top: 8px; }
+  .exprRow {
+    font-size: 16.5px; font-weight: bold; letter-spacing: 0.06em;
+    padding: 4px 2px; color: #b9c4d2;                 /* 薄字(まだ計算していない式) */
+  }
+  .exprRow.solved { color: var(--ink); }
+  .exprRow b { color: var(--red); }
+  .exprRow .eno {
+    display: inline-block; width: 22px; color: var(--navy); font-size: 14px;
+  }
+  .exprRow .eunit { margin-left: 8px; font-size: 12.5px; color: #7688a0; }
+  .exprRow.wipe { animation: wipeIn 0.9s ease-out; }
+  @keyframes wipeIn {
+    from { clip-path: inset(0 100% 0 0); opacity: 0.4; }
+    to   { clip-path: inset(0 0 0 0);   opacity: 1; }
+  }
+  #palette { display: none; gap: 6px; margin-top: 8px; align-items: center; flex-wrap: wrap; }
+  #palette::before { content: "つかえる数:"; font-size: 11.5px; color: #8a99ad; margin-right: 2px; }
+  .chip {
+    background: #eef2f7; color: #5a6b83; font-size: 14px; font-weight: bold;
+    border-radius: 999px; padding: 3px 12px;
+  }
+  .chip.derived { background: #fdeeec; color: var(--red); border: 1.5px solid var(--red); }
   @media (max-width: 640px) {
     header { padding: 7px 10px; }
     #src { display: none; }
@@ -154,6 +179,8 @@
     </div>
     <div id="caption"></div>
     <div id="quizhint"></div>
+    <div id="exprList"></div>
+    <div id="palette"></div>
     <div id="formula"></div>
     <div id="ansrow">
       <span id="anslabel">答え</span>
@@ -514,9 +541,95 @@ function pickRegion(strokePts, regions) {
   return best;
 }
 
+// ==== v3: 「ちゃんとなぞれたか」の判定 ====
+// path(お手本の折れ線)に対して、ストロークがどれだけ忠実かを測る。
+//   cover : お手本のうち、ストロークがr以内を通った割合(0..1) … 全部なぞれたか
+//   on    : ストロークのうち、お手本のr以内にいた割合(0..1)   … 関係ない所を書いていないか
+//   forward: お手本の向きに進んだか(往復・逆走はfalse寄り)
+
+function distToPolyline(p, pts) {
+  let d = Infinity;
+  for (let i = 1; i < pts.length; i++) d = Math.min(d, distToSeg(p, pts[i - 1], pts[i]));
+  return d;
+}
+
+// 折れ線を弧長で等間隔にnサンプリング。各点に沿道パラメータt(0..1)を持たせる
+function samplePolyline(pts, n) {
+  const lens = [0];
+  for (let i = 1; i < pts.length; i++) lens.push(lens[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
+  const total = lens[lens.length - 1];
+  if (total <= 1e-9) return [{ p: pts[0], t: 0 }];
+  const out = [];
+  for (let k = 0; k < n; k++) {
+    const s = (k / (n - 1)) * total;
+    let i = 1;
+    while (i < lens.length - 1 && lens[i] < s) i++;
+    const segLen = lens[i] - lens[i - 1];
+    const u = segLen > 1e-9 ? (s - lens[i - 1]) / segLen : 0;
+    out.push({
+      p: [pts[i - 1][0] + (pts[i][0] - pts[i - 1][0]) * u, pts[i - 1][1] + (pts[i][1] - pts[i - 1][1]) * u],
+      t: s / total,
+    });
+  }
+  return out;
+}
+
+function traceCoverage(strokePts, path, r) {
+  const rr = r || 0.7;
+  if (!Array.isArray(strokePts) || strokePts.length < 2 || !Array.isArray(path) || path.length < 2) {
+    return { cover: 0, on: 0, forward: false };
+  }
+  // cover: お手本サンプルのうちストロークの近くにある割合
+  const samples = samplePolyline(path, 48);
+  let covered = 0;
+  for (const s of samples) if (distToPolyline(s.p, strokePts) <= rr) covered++;
+  const cover = covered / samples.length;
+  // on: ストロークサンプルのうちお手本の近くにいる割合
+  const sSamples = samplePolyline(strokePts, 48);
+  let onCnt = 0;
+  for (const s of sSamples) if (distToPolyline(s.p, path) <= rr) onCnt++;
+  const on = onCnt / sSamples.length;
+  // forward: ストローク各点の「お手本上の最寄り位置t」がおおむね増加し、
+  // 始点側から終点側まで十分に進んだか。小さな往復を「順方向」にしない。
+  const ts = sSamples.map((s) => {
+    let best = 0, bd = Infinity;
+    for (const q of samples) {
+      const d = Math.hypot(q.p[0] - s.p[0], q.p[1] - s.p[1]);
+      if (d < bd) { bd = d; best = q.t; }
+    }
+    return best;
+  });
+  let up = 0, down = 0;
+  for (let i = 1; i < ts.length; i++) {
+    if (ts[i] > ts[i - 1] + 1e-9) up++;
+    else if (ts[i] < ts[i - 1] - 1e-9) down++;
+  }
+  const moving = up + down;
+  const forward = ts[ts.length - 1] - ts[0] >= 0.7 &&
+    moving > 0 && up / moving >= 0.6;
+  return { cover, on, forward };
+}
+
+// なぞり合格判定。
+// opts: { minCover(0.7), minOn(0.5), needForward(false), endpointTolerance(省略時は端点不問) }
+function tracePasses(strokePts, path, r, opts = {}) {
+  const c = traceCoverage(strokePts, path, r);
+  if (c.cover < (opts.minCover != null ? opts.minCover : 0.7)) return false;
+  if (c.on < (opts.minOn != null ? opts.minOn : 0.5)) return false;
+  if (opts.needForward && !c.forward) return false;
+  if (opts.endpointTolerance != null) {
+    const tol = opts.endpointTolerance;
+    if (Math.hypot(strokePts[0][0] - path[0][0], strokePts[0][1] - path[0][1]) > tol) return false;
+    const se = strokePts[strokePts.length - 1], pe = path[path.length - 1];
+    if (Math.hypot(se[0] - pe[0], se[1] - pe[1]) > tol) return false;
+  }
+  return true;
+}
+
 // node(テスト)用エクスポート
 if (typeof module !== "undefined" && module.exports) {
-  module.exports = { screenToWorld, pointInShape, distToSeg, strokeHitScore, strokeHitsShape, pickRegion };
+  module.exports = { screenToWorld, pointInShape, distToSeg, strokeHitScore, strokeHitsShape, pickRegion,
+    distToPolyline, samplePolyline, traceCoverage, tracePasses };
 }
 
 
@@ -913,6 +1026,10 @@ function makeCanvas2DBackend(stageEl) {
       // quizモード: なぞられた region のハイライト(ビルダー非依存の上書き描画)
       if (overlay && overlay.shape && overlay.alpha > 0.01) {
         drawRegionHighlight(g, overlay.shape, overlay.alpha);
+      }
+      // solveモード: なぞりの始点を脈動させる
+      if (overlay && overlay.dot && overlay.alpha > 0.01) {
+        g.dot(overlay.dot[0], overlay.dot[1], { color: C2D.red, rp: 9, alpha: Math.min(1, overlay.alpha) });
       }
       bctx.lastView = view; // 入力(画面→ワールド変換)用に公開
     },
@@ -3522,6 +3639,83 @@ function buildTurtleCrane(params) {
 }
 
 
+/* ===== src/units/word/builders/turtleCrane2.js ===== */
+// ==== ビルダー(2D): つるかめ算・全部カメの面積図(v3なぞって解く用) ====
+// 雅也の手書き図(IMG_1857)の清書。大枠20×4=80の長方形から、
+// 実際の52本(L字)を残して左上の欠け(28)が見える図。
+//
+// 部品はなぞりステップに対応する4つ:
+//   s1: 大枠(全部カメ 20×4)      s2: L字の境界線(実際52とのズレ)
+//   s3: 欠けの高さ(4−2=2)        s4: 上辺の右側(カメのはば6)
+// 各状態は 0=非表示 / 0.35前後=お手本(薄い) / 1=なぞり済み(濃い)
+//
+// params: { total, legsBig, legsSmall, legsSum, ansTsuru, ansKame }
+function buildTurtleCrane2(params) {
+  const { total, legsBig, legsSmall, legsSum, ansTsuru, ansKame } = params;
+  const W = total, H = legsBig, bandH = legsSmall, nW = ansTsuru; // 欠けの幅=つる
+
+  return {
+    draw(g, st, screen) {
+      // 部品の線: 進捗sに応じて お手本(赤点線・薄) → 本描き(濃) を切り替え
+      const stroke = (pts, s, closed) => {
+        if (s < 0.02) return;
+        if (s < 0.99) g.path(pts, { color: C2D.red, w: 2, dash: [7, 6], alpha: 0.25 + s * 0.5, close: closed });
+        else g.path(pts, { color: C2D.edge, w: 3, close: closed });
+      };
+
+      // --- L字の塗り(実際の52本)と欠け(28本) : s2完了後 ---
+      if (st.s2 > 0.99) {
+        g.poly([[0, 0], [W, 0], [W, H], [nW, H], [nW, bandH], [0, bandH]],
+          { color: null, fill: C2D.waterFill, fillAlpha: 0.4 });
+        g.poly([[0, bandH], [nW, bandH], [nW, H], [0, H]],
+          { color: null, fill: C2D.redFill, fillAlpha: 0.8 });
+        g.text(W / 2, bandH / 2, `${legsSum}`, { size: 17, color: C2D.ink });
+        g.text(nW / 2, (bandH + H) / 2, `${legsBig * total - legsSum}`, { size: 15, color: C2D.red });
+      }
+
+      // --- s1: 大枠(20×4) ---
+      stroke([[0, 0], [W, 0], [W, H], [0, H], [0, 0]], st.s1, false);
+      // 寸法(下:匹数 / 右:カメの足)。
+      // 注: CLAUDE.mdの「寸法は字幕へ」はコマ送りアニメ用の規則。v3の図は
+      // 手書き仕様(IMG_1857)の清書=「子どもが解いた記録」なので、原本にある
+      // 寸法・答えは図に残す(docs/V3_DESIGN.md §5 手書きは仕様書)。
+      if (st.s1 > 0.99) {
+        g.arrow(0, -0.75, W, -0.75, { color: C2D.axis, w: 1.2, head: 7 });
+        g.arrow(W, -0.75, 0, -0.75, { color: C2D.axis, w: 1.2, head: 7 });
+        g.text(W / 2, -1.25, `${total}ひき`, { size: 13, color: C2D.ink });
+        g.text(W + 0.6, H / 2, `${legsBig}本`, { align: "left", size: 13, color: C2D.ink });
+      }
+
+      // --- s2: L字の境界(欠けのりんかく) ---
+      stroke([[0, bandH], [nW, bandH], [nW, H]], st.s2, false);
+
+      // --- s3: 欠けの高さ(左の縦、4−2) ---
+      stroke([[0, bandH], [0, H]], st.s3, false);
+      if (st.s3 > 0.99) {
+        g.text(-0.6, (bandH + H) / 2, `${legsBig - legsSmall}`, { align: "right", size: 14, color: C2D.red });
+        g.text(-0.6, bandH / 2, `${legsSmall}`, { align: "right", size: 13, weight: "normal", color: C2D.axis });
+        // つるのはば(欠けの横)= 28÷2 = 14
+        g.text(nW / 2, H + 0.6, `${ansTsuru}`, { size: 15, color: C2D.red });
+        g.line(0, H + 0.25, nW, H + 0.25, { color: C2D.ghost, w: 1, dash: [3, 3] });
+      }
+
+      // --- s4: 上辺の右側(カメのはば) ---
+      stroke([[nW, H], [W, H]], st.s4, false);
+      if (st.s4 > 0.99) {
+        g.text((nW + W) / 2, H + 0.6, `${ansKame}`, { size: 15, color: C2D.blue });
+        g.line(nW, H + 0.25, W, H + 0.25, { color: C2D.ghost, w: 1, dash: [3, 3] });
+      }
+
+      // --- 完成: 答え ---
+      if (st.done > 0.5) {
+        g.badge(nW / 2, H + 1.5, `つる ${ansTsuru}羽`, { bg: C2D.red });
+        g.badge((nW + W) / 2, H + 1.5, `カメ ${ansKame}ひき`, { bg: C2D.blue });
+      }
+    },
+  };
+}
+
+
 /* ===== src/units/word/scenarios.js ===== */
 // ==== 単元: 文章題(2D / Canvas) ====
 // registry で unit:"word", render:"canvas2d" を一括付与される。
@@ -3572,6 +3766,64 @@ function makeWordScenarios() {
         { dur: 2.8, caption: "交換したのは3匹。つまりカメが3匹、ツルが7匹です。面積図なら「たりない分 ÷ 1匹の差」が目に見えます。", formula: "カメ = (26 − 2×10) ÷ (4 − 2) = 3匹 / ツル = 10 − 3 = 7匹", state: { showAns: 1 } },
       ],
     },
+    {
+      id: "turtleCrane2", name: "② つるかめ算(なぞって解く)", type: "turtleCrane2",
+      source: "文章題/つるかめ算。例: 合わせて20匹・足52本(全部カメ方式)",
+      params: { total: 20, legsBig: 4, legsSmall: 2, legsSum: 52, ansTsuru: 14, ansKame: 6 },
+      base: {
+        view: { ox: 60, oy: 200, scale: 21, yUp: true },
+        s1: 0, s2: 0, s3: 0, s4: 0, done: 0,
+      },
+      // ---- v3: なぞって解く(docs/V3_DESIGN.md)。なぞり順=依存順、図と式が1:1 ----
+      v3: {
+        question: "つるとカメが合わせて20います。足の数は全部で52本です。つるとカメは、それぞれいくついますか？",
+        palette0: [20, 52, 4, 2],
+        steps: [
+          {
+            id: "whole", stateKey: "s1",
+            depends_on: [],
+            prompt: "「もし20ぴき全部がカメだったら？」から始めよう。赤い点線の大きな長方形を、ぐるっとなぞって。",
+            trace: { path: [[0, 0], [20, 0], [20, 4], [0, 4], [0, 0]], r: 1.1, minCover: 0.65, minOn: 0.45 },
+            ask: "カメの足は4本。20ぴき全部がカメなら、足は何本になるかな？",
+            expr: { text: "4 × 20 = □", answer: 80, unit: "本" },
+            palette: [80],
+          },
+          {
+            id: "over", stateKey: "s2",
+            depends_on: ["whole"],
+            prompt: "でも、本当は52本。多すぎる分が左上の「欠け」になるよ。かぎ形の点線を、左から順になぞろう。",
+            trace: { path: [[0, 2], [14, 2], [14, 4]], r: 0.9, minCover: 0.7, minOn: 0.55, needForward: true, endpointTolerance: 1.4 },
+            ask: "全部カメなら80本、本当は52本。何本多すぎたかな？",
+            expr: { text: "80 − 52 = □", answer: 28, unit: "本" },
+            palette: [28],
+          },
+          {
+            id: "per", stateKey: "s3",
+            depends_on: ["over"],
+            prompt: "赤い欠けの高さは、カメとつるの足の数のちがいだよ。左のたての点線を、下から上へなぞろう。",
+            trace: { path: [[0, 2], [0, 4]], r: 0.8, minCover: 0.7, minOn: 0.55, needForward: true, endpointTolerance: 1.2 },
+            ask: "カメ1ぴきをつる1羽にすると、足は4−2＝2本へるね。28本へらすには、何羽をつるにするかな？",
+            expr: { text: "28 ÷（4 − 2）= □", answer: 14, unit: "羽 …つる" },
+            palette: [14],
+          },
+          {
+            id: "rest", stateKey: "s4",
+            depends_on: ["per"],
+            prompt: "のこりがカメだよ。上の右がわの点線を、左から右へなぞろう。",
+            trace: { path: [[14, 4], [20, 4]], r: 0.8, minCover: 0.7, minOn: 0.55, needForward: true, endpointTolerance: 1.2 },
+            ask: "合わせて20、つるが14羽。カメはいくつかな？",
+            expr: { text: "20 − 14 = □", answer: 6, unit: "匹 …カメ" },
+            palette: [6],
+          },
+        ],
+        closing: "🎉 とけた！ つる14羽・カメ6ぴき。たしかめると、14×2＋6×4＝52本になるね。",
+      },
+      steps: [
+        { dur: 1.8, caption: "つるとカメが合わせて20匹、足は52本。今度は「ぜんぶカメだったら?」と考えます。カメ20匹なら足は 4×20=80本 の大きな長方形。", state: { s1: 1 } },
+        { dur: 3.0, caption: "ほんとうは52本だから、80−52=28本 ぶんオーバー。オーバーした分が左上の欠け(赤)です。", formula: "オーバー: 4×20 − 52 = 28本", state: { s2: 1, s3: 1 } },
+        { dur: 3.2, caption: "欠けの高さは 4−2=2本(カメとつるの足のちがい)。だから欠けの横はば 28÷2=14 が、つるの数。のこり6匹がカメです。", formula: "つる = 28 ÷ (4−2) = 14匹 / カメ = 20 − 14 = 6匹", state: { s4: 1, done: 1 } },
+      ],
+    },
   ];
 }
 
@@ -3615,7 +3867,7 @@ const BUILDERS = {
   // ratio (2D)
   saltBalance: buildSaltBalance,
   // word (2D)
-  turtleCrane: buildTurtleCrane,
+  turtleCrane: buildTurtleCrane, turtleCrane2: buildTurtleCrane2,
   // cases (2D)
   treeDiagram: buildTreeDiagram,
 };
@@ -3648,8 +3900,9 @@ const App = {
   scnIdx: 0, stepIdx: 0,
   bctx: null, backend: null,
   from: null, to: null, cur: null, t: 1, dur: 1.4,
-  // ---- quizモード(v2: なぞる→段階ヒント。docs/CONCEPT.md) ----
-  mode: "steps",        // "quiz" | "steps"
+  // ---- quizモード(v2) / solveモード(v3: なぞって解く。docs/V3_DESIGN.md) ----
+  mode: "steps",        // "quiz" | "steps" | "solve"
+  solve: null,          // { idx, await:"trace"|"input"|"done", tries }
   quizState: null,      // quizモードの現在の到達状態(ヒントアニメで進む)
   hintLevels: {},       // regionId → 何段階目まで見たか
   animQueue: [],        // ヒントのマイクロアニメの残りステップ
@@ -3731,7 +3984,8 @@ function loadScenario(i) {
   App.animQueue = [];
   App.overlay = null;
   App.stroke = null;   // なぞり途中のシナリオ切替で古いストロークを持ち越さない
-  if (scn.quiz) enterQuizMode();       // quiz付きは「問題ファースト」
+  if (scn.v3) enterSolveMode();        // v3: なぞって解く
+  else if (scn.quiz) enterQuizMode();  // v2: 問題ファースト+ヒント
   else { App.mode = "steps"; gotoStep(0, 0.01); }
   syncModeUI();
   syncTabs();
@@ -3769,16 +4023,144 @@ function enterQuizMode() {
   syncModeUI();
 }
 
-// UI表示のモード切替(quiz: なぞり+答え / steps: コマ送り)
+// UI表示のモード切替(quiz: なぞり+答え / solve: なぞって解く / steps: コマ送り)
 function syncModeUI() {
   const scn = App.scenarios[App.scnIdx];
   const quiz = App.mode === "quiz";
-  const hasQuiz = !!scn.quiz;
-  document.getElementById("stepctl").style.display = quiz ? "none" : "flex";
-  document.getElementById("quizctl").style.display = quiz ? "flex" : "none";
-  document.getElementById("quizhint").style.display = quiz ? "block" : "none";
-  document.getElementById("ansrow").style.display = quiz && scn.quiz && scn.quiz.answer != null ? "flex" : "none";
-  document.getElementById("toQuiz").style.display = !quiz && hasQuiz ? "block" : "none";
+  const solve = App.mode === "solve";
+  const hasProblem = !!scn.quiz || !!scn.v3;
+  document.getElementById("stepctl").style.display = quiz || solve ? "none" : "flex";
+  document.getElementById("quizctl").style.display = quiz || solve ? "flex" : "none";
+  document.getElementById("quizhint").style.display = quiz || solve ? "block" : "none";
+  document.getElementById("ansrow").style.display =
+    (quiz && scn.quiz && scn.quiz.answer != null) ||
+    (solve && App.solve && App.solve.await === "input") ? "flex" : "none";
+  document.getElementById("toQuiz").style.display = !quiz && !solve && hasProblem ? "block" : "none";
+  document.getElementById("exprList").style.display = solve ? "block" : "none";
+  document.getElementById("palette").style.display = solve ? "flex" : "none";
+}
+
+// ==== solveモード(v3: なぞって解く) ====
+function enterSolveMode() {
+  const scn = App.scenarios[App.scnIdx];
+  App.mode = "solve";
+  App.animQueue = [];
+  App.overlay = null;
+  App.stroke = null;
+  App.solve = { idx: 0, await: "trace", tries: 0 };
+  App.quizState = deepClone(scn.base);
+  scn.v3.steps.forEach((s, i) => { App.quizState[s.stateKey] = i === 0 ? 0.35 : 0; });
+  App.to = deepClone(App.quizState);
+  App.from = App.cur ? deepClone(App.cur) : deepClone(App.to);
+  App.t = 0; App.dur = 0.6;
+  document.getElementById("stepchip").textContent = "問題";
+  document.getElementById("caption").textContent = scn.v3.question;
+  document.getElementById("quizhint").textContent = `✍️ ${scn.v3.steps[0].prompt}`;
+  const f = document.getElementById("formula");
+  f.textContent = ""; f.style.display = "none";
+  document.getElementById("dots").innerHTML = "";
+  document.getElementById("answer").value = "";
+  renderSolvePanel();
+  syncModeUI();
+}
+
+// 式リスト(ワイプ出現)とパレットの描き直し
+function renderSolvePanel(wipeCurrent) {
+  const scn = App.scenarios[App.scnIdx];
+  const v3 = scn.v3, sv = App.solve;
+  const list = document.getElementById("exprList");
+  list.innerHTML = "";
+  v3.steps.forEach((s, i) => {
+    if (i > sv.idx) return;                                   // 未来の式はまだ存在しない
+    if (i === sv.idx && sv.await === "trace") return;         // なぞり前は出さない
+    const row = document.createElement("div");
+    const solved = i < sv.idx || sv.await === "done";
+    row.className = "exprRow" + (solved ? " solved" : " current") + (i === sv.idx && wipeCurrent ? " wipe" : "");
+    const num = `<b>${s.expr.answer}</b>`;
+    row.innerHTML = `<span class="eno">${"①②③④⑤"[i] || i + 1}</span> ` +
+      (solved ? s.expr.text.replace("□", num) : s.expr.text) +
+      (solved ? `<span class="eunit">${s.expr.unit || ""}</span>` : "");
+    list.appendChild(row);
+  });
+  // パレット: 最初の数 + これまでに導出した数
+  const pal = document.getElementById("palette");
+  pal.innerHTML = "";
+  const chips = (v3.palette0 || []).map((n) => ({ n, derived: false }));
+  v3.steps.forEach((s, i) => {
+    if (i < sv.idx || sv.await === "done") (s.palette || []).forEach((n) => chips.push({ n, derived: true }));
+  });
+  chips.forEach((c) => {
+    const el = document.createElement("span");
+    el.className = "chip" + (c.derived ? " derived" : "");
+    el.textContent = c.n;
+    pal.appendChild(el);
+  });
+}
+
+// なぞり終わり(solve): 現在ステップのお手本に忠実か判定
+function onSolveStroke(stroke) {
+  const scn = App.scenarios[App.scnIdx];
+  const sv = App.solve;
+  if (!sv || sv.await !== "trace") return;
+  const step = scn.v3.steps[sv.idx];
+  const bubble = document.getElementById("quizhint");
+  const tr = step.trace;
+  if (tracePasses(stroke, tr.path, tr.r, tr)) {
+    App.quizState[step.stateKey] = 1;                 // 本描きに確定
+    App.to = deepClone(App.quizState);
+    App.from = App.cur ? deepClone(App.cur) : deepClone(App.to);
+    App.t = 0; App.dur = 0.5;
+    sv.await = "input";
+    bubble.textContent = `💭 ${step.ask}`;
+    renderSolvePanel(true);                            // 式が薄字でワイプ出現
+    syncModeUI();
+    const ans = document.getElementById("answer");
+    ans.value = ""; ans.focus();
+    return;
+  }
+  // 順番ちがい? 未来のステップのお手本に合っていたら教える
+  const future = scn.v3.steps.slice(sv.idx + 1).some((s) => tracePasses(stroke, s.trace.path, s.trace.r, s.trace));
+  bubble.textContent = future
+    ? "順番があるよ! いま光っている点線からなぞろう。"
+    : "うすい点線を、はしからはしまでゆっくりなぞってみよう。";
+}
+
+// solveの答え合わせ(1ステップぶんの計算)
+function checkSolveAnswer(val) {
+  const scn = App.scenarios[App.scnIdx];
+  const sv = App.solve;
+  const bubble = document.getElementById("quizhint");
+  // なぞりが済んでいない段階の入力は受けない(なぞる=解く、が本体のため)
+  if (!sv || sv.await !== "input") {
+    if (sv && sv.await === "trace") bubble.textContent = "まず、光っている点線をなぞってからだよ。";
+    return;
+  }
+  const step = scn.v3.steps[sv.idx];
+  const pr = markProgress(scn.id, {});
+  if (Math.abs(val - step.expr.answer) < 1e-9) {
+    sv.idx++;
+    document.getElementById("answer").value = "";
+    if (sv.idx >= scn.v3.steps.length) {
+      sv.await = "done";
+      App.quizState.done = 1;
+      markProgress(scn.id, { solved: true, tries: pr.tries + 1 });
+      bubble.textContent = scn.v3.closing || "🎉 とけた!";
+      renderProblemTabs(); syncTabs();
+    } else {
+      sv.await = "trace";
+      const next = scn.v3.steps[sv.idx];
+      App.quizState[next.stateKey] = 0.35;             // 次のお手本を薄く出す
+      bubble.textContent = `✍️ ${next.prompt}`;
+    }
+    App.to = deepClone(App.quizState);
+    App.from = App.cur ? deepClone(App.cur) : deepClone(App.to);
+    App.t = 0; App.dur = 0.5;
+    renderSolvePanel();
+    syncModeUI();
+  } else {
+    markProgress(scn.id, { tries: pr.tries + 1 });
+    bubble.textContent = "おしい! もう一度、式を見ながら計算してみよう。";
+  }
 }
 
 // なぞり(またはタップ)で region がヒットしたとき: 次の段階のヒントを出す
@@ -3851,6 +4233,7 @@ function checkAnswer() {
   const bubble = document.getElementById("quizhint");
   if (!/^-?\d+(\.\d+)?$/.test(raw)) { bubble.textContent = "数字を入れてから「答え合わせ」を押してね。"; return; }
   const val = parseFloat(raw);
+  if (App.mode === "solve") { checkSolveAnswer(val); return; }
   const pr = markProgress(scn.id, {});
   if (Math.abs(val - scn.quiz.answer) < 1e-9) {
     markProgress(scn.id, { solved: true, tries: pr.tries + 1 });
@@ -3897,7 +4280,7 @@ function strokePoint(ev) {
 function bindPointer() {
   let activeId = null; // 開始したポインターだけを追う(マルチタッチの混線防止)
   stageEl.addEventListener("pointerdown", (ev) => {
-    if (App.mode !== "quiz" || App.backend.kind !== "canvas2d" || activeId != null) return;
+    if ((App.mode !== "quiz" && App.mode !== "solve") || App.backend.kind !== "canvas2d" || activeId != null) return;
     const p = strokePoint(ev);
     if (!p) return;
     App.stroke = [p];
@@ -3918,6 +4301,7 @@ function bindPointer() {
     if (!App.stroke) return;
     const scn = App.scenarios[App.scnIdx];
     const stroke = App.stroke; App.stroke = null;
+    if (App.mode === "solve" && scn.v3) { onSolveStroke(stroke); return; }
     if (App.mode !== "quiz" || !scn.quiz || !scn.quiz.regions) return;
     const region = pickRegion(stroke, scn.quiz.regions);
     if (region) onRegionHit(region);
@@ -4001,8 +4385,13 @@ function init() {
   };
   document.getElementById("replay").onclick = replayStep;
   document.getElementById("toSteps").onclick = switchToSteps;
-  document.getElementById("toQuiz").onclick = enterQuizMode;
-  document.getElementById("qreset").onclick = resetQuizFigure;
+  document.getElementById("toQuiz").onclick = () => {
+    const scn = App.scenarios[App.scnIdx];
+    if (scn.v3) enterSolveMode(); else enterQuizMode();
+  };
+  document.getElementById("qreset").onclick = () => {
+    if (App.mode === "solve") enterSolveMode(); else resetQuizFigure();
+  };
   document.getElementById("check").onclick = checkAnswer;
   document.getElementById("answer").addEventListener("keydown", (e) => {
     if (e.key === "Enter") checkAnswer();
@@ -4018,10 +4407,16 @@ function init() {
   loadScenario(0);
 
   let last = performance.now();
+  let lastW = 0, lastH = 0;
   const loop = (now) => {
     requestAnimationFrame(loop);
     const dt = Math.min((now - last) / 1000, 0.05);
     last = now;
+    // 下のパネル(式リスト等)の伸縮でステージの大きさが変わったら追従する
+    if (stageEl.clientWidth !== lastW || stageEl.clientHeight !== lastH) {
+      lastW = stageEl.clientWidth; lastH = stageEl.clientHeight;
+      if (App.backend) App.backend.resize();
+    }
     if (App.t < 1) App.t = Math.min(1, App.t + dt / App.dur);
     else if (App.mode === "quiz" && App.animQueue.length) nextQuizAnim(); // ヒントアニメの次のコマへ
     App.cur = lerpStates(App.from, App.to, easeInOut(App.t));
@@ -4031,6 +4426,12 @@ function init() {
       const remain = App.overlay.until - now;
       if (remain <= 0) App.overlay = null;
       else overlay = { shape: App.overlay.shape, alpha: Math.min(1, remain / 600) * 0.9 };
+    }
+    // solve: いまなぞるべきお手本の始点を脈動させる(入口が分かるように)
+    if (App.mode === "solve" && App.solve && App.solve.await === "trace") {
+      const scn = App.scenarios[App.scnIdx];
+      const step = scn.v3.steps[App.solve.idx];
+      if (step) overlay = { dot: step.trace.path[0], alpha: 0.45 + 0.4 * Math.sin(now / 260) };
     }
     App.backend.frame(App.bctx, App.cur, overlay);
   };

@@ -589,7 +589,8 @@ function traceCoverage(strokePts, path, r) {
   let onCnt = 0;
   for (const s of sSamples) if (distToPolyline(s.p, path) <= rr) onCnt++;
   const on = onCnt / sSamples.length;
-  // forward: ストローク各点の「お手本上の最寄り位置t」がおおむね増加しているか
+  // forward: ストローク各点の「お手本上の最寄り位置t」がおおむね増加し、
+  // 始点側から終点側まで十分に進んだか。小さな往復を「順方向」にしない。
   const ts = sSamples.map((s) => {
     let best = 0, bd = Infinity;
     for (const q of samples) {
@@ -603,16 +604,25 @@ function traceCoverage(strokePts, path, r) {
     if (ts[i] > ts[i - 1] + 1e-9) up++;
     else if (ts[i] < ts[i - 1] - 1e-9) down++;
   }
-  const forward = up >= down;
+  const moving = up + down;
+  const forward = ts[ts.length - 1] - ts[0] >= 0.7 &&
+    moving > 0 && up / moving >= 0.6;
   return { cover, on, forward };
 }
 
-// なぞり合格判定。opts: { minCover(0.7), minOn(0.5), needForward(false) }
+// なぞり合格判定。
+// opts: { minCover(0.7), minOn(0.5), needForward(false), endpointTolerance(省略時は端点不問) }
 function tracePasses(strokePts, path, r, opts = {}) {
   const c = traceCoverage(strokePts, path, r);
   if (c.cover < (opts.minCover != null ? opts.minCover : 0.7)) return false;
   if (c.on < (opts.minOn != null ? opts.minOn : 0.5)) return false;
   if (opts.needForward && !c.forward) return false;
+  if (opts.endpointTolerance != null) {
+    const tol = opts.endpointTolerance;
+    if (Math.hypot(strokePts[0][0] - path[0][0], strokePts[0][1] - path[0][1]) > tol) return false;
+    const se = strokePts[strokePts.length - 1], pe = path[path.length - 1];
+    if (Math.hypot(se[0] - pe[0], se[1] - pe[1]) > tol) return false;
+  }
   return true;
 }
 
@@ -3665,13 +3675,15 @@ function buildTurtleCrane2(params) {
 
       // --- s1: 大枠(20×4) ---
       stroke([[0, 0], [W, 0], [W, H], [0, H], [0, 0]], st.s1, false);
+      // 寸法(下:匹数 / 右:カメの足)。
+      // 注: CLAUDE.mdの「寸法は字幕へ」はコマ送りアニメ用の規則。v3の図は
+      // 手書き仕様(IMG_1857)の清書=「子どもが解いた記録」なので、原本にある
+      // 寸法・答えは図に残す(docs/V3_DESIGN.md §5 手書きは仕様書)。
       if (st.s1 > 0.99) {
-        // 寸法(下:匹数 / 右:カメの足)
         g.arrow(0, -0.75, W, -0.75, { color: C2D.axis, w: 1.2, head: 7 });
         g.arrow(W, -0.75, 0, -0.75, { color: C2D.axis, w: 1.2, head: 7 });
-        g.text(W / 2, -1.25, `${total}匹`, { size: 13, color: C2D.ink });
+        g.text(W / 2, -1.25, `${total}ひき`, { size: 13, color: C2D.ink });
         g.text(W + 0.6, H / 2, `${legsBig}本`, { align: "left", size: 13, color: C2D.ink });
-        if (st.s2 < 0.99) g.text(W / 2, H / 2, `${legsBig}×${total}`, { size: 15, color: C2D.ghost });
       }
 
       // --- s2: L字の境界(欠けのりんかく) ---
@@ -3682,16 +3694,13 @@ function buildTurtleCrane2(params) {
       if (st.s3 > 0.99) {
         g.text(-0.6, (bandH + H) / 2, `${legsBig - legsSmall}`, { align: "right", size: 14, color: C2D.red });
         g.text(-0.6, bandH / 2, `${legsSmall}`, { align: "right", size: 13, weight: "normal", color: C2D.axis });
+        // つるのはば(欠けの横)= 28÷2 = 14
+        g.text(nW / 2, H + 0.6, `${ansTsuru}`, { size: 15, color: C2D.red });
+        g.line(0, H + 0.25, nW, H + 0.25, { color: C2D.ghost, w: 1, dash: [3, 3] });
       }
 
       // --- s4: 上辺の右側(カメのはば) ---
       stroke([[nW, H], [W, H]], st.s4, false);
-
-      // 上の寸法(つる14 / カメ6)
-      if (st.s3 > 0.99) {
-        g.text(nW / 2, H + 0.6, `${ansTsuru}`, { size: 15, color: C2D.red });
-        g.line(0, H + 0.25, nW, H + 0.25, { color: C2D.ghost, w: 1, dash: [3, 3] });
-      }
       if (st.s4 > 0.99) {
         g.text((nW + W) / 2, H + 0.6, `${ansKame}`, { size: 15, color: C2D.blue });
         g.line(nW, H + 0.25, W, H + 0.25, { color: C2D.ghost, w: 1, dash: [3, 3] });
@@ -3699,8 +3708,8 @@ function buildTurtleCrane2(params) {
 
       // --- 完成: 答え ---
       if (st.done > 0.5) {
-        g.badge(nW / 2, H + 1.5, `つる ${ansTsuru}匹`, { bg: C2D.red });
-        g.badge((nW + W) / 2, H + 1.5, `カメ ${ansKame}匹`, { bg: C2D.blue });
+        g.badge(nW / 2, H + 1.5, `つる ${ansTsuru}羽`, { bg: C2D.red });
+        g.badge((nW + W) / 2, H + 1.5, `カメ ${ansKame}ひき`, { bg: C2D.blue });
       }
     },
   };
@@ -3767,43 +3776,47 @@ function makeWordScenarios() {
       },
       // ---- v3: なぞって解く(docs/V3_DESIGN.md)。なぞり順=依存順、図と式が1:1 ----
       v3: {
-        question: "つるとカメが合わせて20匹います。足の数を数えると52本でした。つるとカメはそれぞれ何匹いますか?",
+        question: "つるとカメが合わせて20います。足の数は全部で52本です。つるとカメは、それぞれいくついますか？",
         palette0: [20, 52, 4, 2],
         steps: [
           {
             id: "whole", stateKey: "s1",
-            prompt: "「もし20匹ぜんぶカメだったら?」から始めよう。赤い点線の大わく(長方形)を、ぐるっとなぞって。",
+            depends_on: [],
+            prompt: "「もし20ぴき全部がカメだったら？」から始めよう。赤い点線の大きな長方形を、ぐるっとなぞって。",
             trace: { path: [[0, 0], [20, 0], [20, 4], [0, 4], [0, 0]], r: 1.1, minCover: 0.65, minOn: 0.45 },
-            ask: "たて4本 × よこ20匹の長方形ができた。足はぜんぶで何本になるはず?",
+            ask: "カメの足は4本。20ぴき全部がカメなら、足は何本になるかな？",
             expr: { text: "4 × 20 = □", answer: 80, unit: "本" },
             palette: [80],
           },
           {
             id: "over", stateKey: "s2",
-            prompt: "でも、ほんとうの足は52本。オーバーした分が左上の「欠け」になる。かぎの形の点線をなぞって、52本と分けよう。",
-            trace: { path: [[0, 2], [14, 2], [14, 4]], r: 1.0, minCover: 0.65, minOn: 0.45 },
-            ask: "80本のつもりが、ほんとうは52本。何本オーバーしてた?",
+            depends_on: ["whole"],
+            prompt: "でも、本当は52本。多すぎる分が左上の「欠け」になるよ。かぎ形の点線を、左から順になぞろう。",
+            trace: { path: [[0, 2], [14, 2], [14, 4]], r: 0.9, minCover: 0.7, minOn: 0.55, needForward: true, endpointTolerance: 1.4 },
+            ask: "全部カメなら80本、本当は52本。何本多すぎたかな？",
             expr: { text: "80 − 52 = □", answer: 28, unit: "本" },
             palette: [28],
           },
           {
             id: "per", stateKey: "s3",
-            prompt: "赤い欠け(28本)の高さは、カメとつるの足のちがい。左のたての点線をなぞろう。",
-            trace: { path: [[0, 2], [0, 4]], r: 0.9, minCover: 0.6, minOn: 0.4 },
-            ask: "欠けの高さは 4−2＝2本。28本を2本ずつで割ると、つるは何匹?",
-            expr: { text: "28 ÷（4 − 2）= □", answer: 14, unit: "匹 …つる" },
+            depends_on: ["over"],
+            prompt: "赤い欠けの高さは、カメとつるの足の数のちがいだよ。左のたての点線を、下から上へなぞろう。",
+            trace: { path: [[0, 2], [0, 4]], r: 0.8, minCover: 0.7, minOn: 0.55, needForward: true, endpointTolerance: 1.2 },
+            ask: "カメ1ぴきをつる1羽にすると、足は4−2＝2本へるね。28本へらすには、何羽をつるにするかな？",
+            expr: { text: "28 ÷（4 − 2）= □", answer: 14, unit: "羽 …つる" },
             palette: [14],
           },
           {
             id: "rest", stateKey: "s4",
-            prompt: "のこりがカメ。上の右がわの点線をなぞって、カメのはばを確かめよう。",
-            trace: { path: [[14, 4], [20, 4]], r: 0.9, minCover: 0.6, minOn: 0.4 },
-            ask: "20匹のうち、つるが14匹。カメは何匹?",
+            depends_on: ["per"],
+            prompt: "のこりがカメだよ。上の右がわの点線を、左から右へなぞろう。",
+            trace: { path: [[14, 4], [20, 4]], r: 0.8, minCover: 0.7, minOn: 0.55, needForward: true, endpointTolerance: 1.2 },
+            ask: "合わせて20、つるが14羽。カメはいくつかな？",
             expr: { text: "20 − 14 = □", answer: 6, unit: "匹 …カメ" },
             palette: [6],
           },
         ],
-        closing: "🎉 とけた! つる14匹・カメ6匹。けんざん: 14×2 + 6×4 = 28 + 24 = 52本 ✓",
+        closing: "🎉 とけた！ つる14羽・カメ6ぴき。たしかめると、14×2＋6×4＝52本になるね。",
       },
       steps: [
         { dur: 1.8, caption: "つるとカメが合わせて20匹、足は52本。今度は「ぜんぶカメだったら?」と考えます。カメ20匹なら足は 4×20=80本 の大きな長方形。", state: { s1: 1 } },

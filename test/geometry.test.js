@@ -404,9 +404,15 @@ console.log("V3 TURTLE TESTS DONE");
   const seg = [[0, 2], [0, 4]];
   const up = [[0, 2], [0, 2.5], [0, 3], [0, 3.5], [0, 4]];
   const down = up.slice().reverse();
-  ok(H.tracePasses(up, seg, 0.9, { minCover: 0.6, needForward: true }), "正しい向きのなぞりは合格");
-  ok(!H.tracePasses(down, seg, 0.9, { minCover: 0.6, needForward: true }), "逆向きは needForward で不合格");
+  ok(H.tracePasses(up, seg, 0.55, { minCover: 0.82, minOn: 0.75, needForward: true, endpointTolerance: 0.8 }), "正しい向きのなぞりは合格");
+  ok(!H.tracePasses(down, seg, 0.55, { minCover: 0.82, minOn: 0.75, needForward: true, endpointTolerance: 0.8 }), "逆向きは needForward で不合格");
   ok(H.tracePasses(down, seg, 0.9, { minCover: 0.6 }), "向き不問なら逆向きも合格");
+  const shortSwipe = [[0, 2.65], [0, 3.15]];
+  ok(!H.tracePasses(shortSwipe, seg, 0.55, { minCover: 0.82, minOn: 0.75, needForward: true, endpointTolerance: 0.8 }),
+    "線の中央だけの短いスワイプは不合格");
+  const backtrack = [[0,2], [0,2.7], [0,2.3], [0,2.9], [0,2.5], [0,3.1]];
+  ok(!H.tracePasses(backtrack, seg, 0.55, { minCover: 0.6, minOn: 0.7, needForward: true }),
+    "中央付近の往復は順方向とみなさない");
 }
 console.log("TRACE TESTS DONE");
 

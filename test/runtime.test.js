@@ -143,14 +143,20 @@ for (const scn of scenarios) {
       if (!v.question) throw new Error("v3.question がない");
       if (!Array.isArray(v.steps) || !v.steps.length) throw new Error("v3.steps が空");
       const vs = JSON.parse(JSON.stringify(scn.base));
+      const seenIds = new Set();
       frame(vs);
       for (const s of v.steps) {
+        if (!s.id || seenIds.has(s.id)) throw new Error(`step id ${s.id} がない、または重複`);
+        if (!Array.isArray(s.depends_on) || s.depends_on.some((id) => !seenIds.has(id))) {
+          throw new Error(`step ${s.id}: depends_on は前のstepだけを指定する`);
+        }
         if (!s.stateKey || !(s.stateKey in scn.base)) throw new Error(`step ${s.id}: stateKey ${s.stateKey} が base にない`);
         if (!s.trace || !Array.isArray(s.trace.path) || s.trace.path.length < 2) throw new Error(`step ${s.id}: trace.path が不正`);
         if (!s.expr || typeof s.expr.answer !== "number" || !s.expr.text.includes("□")) throw new Error(`step ${s.id}: expr が不正(□必須)`);
         if (!s.prompt || !s.ask) throw new Error(`step ${s.id}: prompt/ask がない`);
         vs[s.stateKey] = 0.35; frame(vs);   // お手本表示
         vs[s.stateKey] = 1; frame(vs);      // なぞり済み
+        seenIds.add(s.id);
       }
       vs.done = 1; frame(vs);
       console.log(`PASS  [${scn.unit}] ${scn.id} v3(${v.steps.length} steps) OK`);

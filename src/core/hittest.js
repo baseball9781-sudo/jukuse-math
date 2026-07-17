@@ -149,7 +149,8 @@ function traceCoverage(strokePts, path, r) {
   let onCnt = 0;
   for (const s of sSamples) if (distToPolyline(s.p, path) <= rr) onCnt++;
   const on = onCnt / sSamples.length;
-  // forward: ストローク各点の「お手本上の最寄り位置t」がおおむね増加しているか
+  // forward: ストローク各点の「お手本上の最寄り位置t」がおおむね増加し、
+  // 始点側から終点側まで十分に進んだか。小さな往復を「順方向」にしない。
   const ts = sSamples.map((s) => {
     let best = 0, bd = Infinity;
     for (const q of samples) {
@@ -163,16 +164,25 @@ function traceCoverage(strokePts, path, r) {
     if (ts[i] > ts[i - 1] + 1e-9) up++;
     else if (ts[i] < ts[i - 1] - 1e-9) down++;
   }
-  const forward = up >= down;
+  const moving = up + down;
+  const forward = ts[ts.length - 1] - ts[0] >= 0.7 &&
+    moving > 0 && up / moving >= 0.6;
   return { cover, on, forward };
 }
 
-// なぞり合格判定。opts: { minCover(0.7), minOn(0.5), needForward(false) }
+// なぞり合格判定。
+// opts: { minCover(0.7), minOn(0.5), needForward(false), endpointTolerance(省略時は端点不問) }
 function tracePasses(strokePts, path, r, opts = {}) {
   const c = traceCoverage(strokePts, path, r);
   if (c.cover < (opts.minCover != null ? opts.minCover : 0.7)) return false;
   if (c.on < (opts.minOn != null ? opts.minOn : 0.5)) return false;
   if (opts.needForward && !c.forward) return false;
+  if (opts.endpointTolerance != null) {
+    const tol = opts.endpointTolerance;
+    if (Math.hypot(strokePts[0][0] - path[0][0], strokePts[0][1] - path[0][1]) > tol) return false;
+    const se = strokePts[strokePts.length - 1], pe = path[path.length - 1];
+    if (Math.hypot(se[0] - pe[0], se[1] - pe[1]) > tol) return false;
+  }
   return true;
 }
 
