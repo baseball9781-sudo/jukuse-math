@@ -128,6 +128,31 @@
     font-weight: bold; border-radius: 9px; padding: 9px 0; cursor: pointer;
     border: 1.5px dashed var(--navy); background: #fff; color: var(--navy); }
   #toQuiz:hover { background: #eaf1fa; }
+
+  /* ---- solveモード(v3: なぞって解く) ---- */
+  #exprList { display: none; margin-top: 8px; }
+  .exprRow {
+    font-size: 16.5px; font-weight: bold; letter-spacing: 0.06em;
+    padding: 4px 2px; color: #b9c4d2;                 /* 薄字(まだ計算していない式) */
+  }
+  .exprRow.solved { color: var(--ink); }
+  .exprRow b { color: var(--red); }
+  .exprRow .eno {
+    display: inline-block; width: 22px; color: var(--navy); font-size: 14px;
+  }
+  .exprRow .eunit { margin-left: 8px; font-size: 12.5px; color: #7688a0; }
+  .exprRow.wipe { animation: wipeIn 0.9s ease-out; }
+  @keyframes wipeIn {
+    from { clip-path: inset(0 100% 0 0); opacity: 0.4; }
+    to   { clip-path: inset(0 0 0 0);   opacity: 1; }
+  }
+  #palette { display: none; gap: 6px; margin-top: 8px; align-items: center; flex-wrap: wrap; }
+  #palette::before { content: "つかえる数:"; font-size: 11.5px; color: #8a99ad; margin-right: 2px; }
+  .chip {
+    background: #eef2f7; color: #5a6b83; font-size: 14px; font-weight: bold;
+    border-radius: 999px; padding: 3px 12px;
+  }
+  .chip.derived { background: #fdeeec; color: var(--red); border: 1.5px solid var(--red); }
   @media (max-width: 640px) {
     header { padding: 7px 10px; }
     #src { display: none; }
@@ -154,6 +179,8 @@
     </div>
     <div id="caption"></div>
     <div id="quizhint"></div>
+    <div id="exprList"></div>
+    <div id="palette"></div>
     <div id="formula"></div>
     <div id="ansrow">
       <span id="anslabel">答え</span>

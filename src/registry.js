@@ -36,7 +36,7 @@ const BUILDERS = {
   // ratio (2D)
   saltBalance: buildSaltBalance,
   // word (2D)
-  turtleCrane: buildTurtleCrane,
+  turtleCrane: buildTurtleCrane, turtleCrane2: buildTurtleCrane2,
   // cases (2D)
   treeDiagram: buildTreeDiagram,
 };

@@ -362,6 +362,54 @@ console.log("QUIZ ANSWER TESTS DONE");
 }
 console.log("HITTEST TESTS DONE");
 
+// ---------- 19. v3: なぞって解くつるかめ算(20匹・52本・全部カメ方式) ----------
+{
+  const total = 20, legsSum = 52, big = 4, small = 2;
+  const whole = big * total;
+  ok(near(whole, 80), `全部カメなら 4×20 = 80本 (got ${whole})`);
+  const over = whole - legsSum;
+  ok(near(over, 28), `オーバー = 80−52 = 28本 (got ${over})`);
+  const tsuru = over / (big - small);
+  ok(near(tsuru, 14), `つる = 28÷2 = 14匹 (got ${tsuru})`);
+  const kame = total - tsuru;
+  ok(near(kame, 6), `カメ = 20−14 = 6匹 (got ${kame})`);
+  ok(near(tsuru * small + kame * big, legsSum), `けんざん 14×2+6×4 = 52本`);
+  // 図の整合: 欠け(14×2)=28、L字(20×2 + 6×2)=52
+  ok(near(tsuru * (big - small), 28), "欠けの面積 = 28");
+  ok(near(total * small + kame * (big - small), 52), "L字の面積 = 52");
+}
+console.log("V3 TURTLE TESTS DONE");
+
+// ---------- 20. v3: なぞり判定(traceCoverage) ----------
+{
+  const H = require("../src/core/hittest.js");
+  const frame = [[0, 0], [20, 0], [20, 4], [0, 4], [0, 0]];
+  // お手本に忠実な一周(少しゆれる)
+  const good = [];
+  for (const [a, b] of [[[0,0],[20,0]], [[20,0],[20,4]], [[20,4],[0,4]], [[0,4],[0,0]]]) {
+    for (let i = 0; i < 12; i++) {
+      const t = i / 12;
+      good.push([a[0] + (b[0] - a[0]) * t + 0.3 * Math.sin(i), a[1] + (b[1] - a[1]) * t + 0.3 * Math.cos(i)]);
+    }
+  }
+  ok(H.tracePasses(good, frame, 1.1, { minCover: 0.65, minOn: 0.45 }), "ゆれのある一周なぞりは合格");
+  // 半分しかなぞらない → cover不足で不合格
+  const half = good.slice(0, Math.floor(good.length / 2));
+  ok(!H.tracePasses(half, frame, 1.1, { minCover: 0.65, minOn: 0.45 }), "半分だけなぞりは不合格");
+  // 図の真ん中をぐちゃぐちゃ → on不足で不合格
+  const scribble = [];
+  for (let i = 0; i < 40; i++) scribble.push([8 + 4 * Math.sin(i * 2.1), 2 + 0.9 * Math.cos(i * 1.7)]);
+  ok(!H.tracePasses(scribble, frame, 1.1, { minCover: 0.65, minOn: 0.45 }), "真ん中のぐちゃぐちゃは不合格");
+  // 縦線: 正しい向き/逆向き(needForward)
+  const seg = [[0, 2], [0, 4]];
+  const up = [[0, 2], [0, 2.5], [0, 3], [0, 3.5], [0, 4]];
+  const down = up.slice().reverse();
+  ok(H.tracePasses(up, seg, 0.9, { minCover: 0.6, needForward: true }), "正しい向きのなぞりは合格");
+  ok(!H.tracePasses(down, seg, 0.9, { minCover: 0.6, needForward: true }), "逆向きは needForward で不合格");
+  ok(H.tracePasses(down, seg, 0.9, { minCover: 0.6 }), "向き不問なら逆向きも合格");
+}
+console.log("TRACE TESTS DONE");
+
 // ---------- 最終集計(途中のFAILも拾って非0で終了する) ----------
 console.log(fails === 0 ? "\nGEOMETRY: ALL PASSED" : `\nGEOMETRY: ${fails} TEST(S) FAILED`);
 process.exit(fails === 0 ? 0 : 1);

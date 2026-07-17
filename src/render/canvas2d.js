@@ -218,6 +218,10 @@ function makeCanvas2DBackend(stageEl) {
       if (overlay && overlay.shape && overlay.alpha > 0.01) {
         drawRegionHighlight(g, overlay.shape, overlay.alpha);
       }
+      // solveモード: なぞりの始点を脈動させる
+      if (overlay && overlay.dot && overlay.alpha > 0.01) {
+        g.dot(overlay.dot[0], overlay.dot[1], { color: C2D.red, rp: 9, alpha: Math.min(1, overlay.alpha) });
+      }
       bctx.lastView = view; // 入力(画面→ワールド変換)用に公開
     },
     dispose() {},

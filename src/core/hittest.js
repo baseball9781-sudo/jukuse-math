@@ -101,7 +101,83 @@ function pickRegion(strokePts, regions) {
   return best;
 }
 
+// ==== v3: 「ちゃんとなぞれたか」の判定 ====
+// path(お手本の折れ線)に対して、ストロークがどれだけ忠実かを測る。
+//   cover : お手本のうち、ストロークがr以内を通った割合(0..1) … 全部なぞれたか
+//   on    : ストロークのうち、お手本のr以内にいた割合(0..1)   … 関係ない所を書いていないか
+//   forward: お手本の向きに進んだか(往復・逆走はfalse寄り)
+
+function distToPolyline(p, pts) {
+  let d = Infinity;
+  for (let i = 1; i < pts.length; i++) d = Math.min(d, distToSeg(p, pts[i - 1], pts[i]));
+  return d;
+}
+
+// 折れ線を弧長で等間隔にnサンプリング。各点に沿道パラメータt(0..1)を持たせる
+function samplePolyline(pts, n) {
+  const lens = [0];
+  for (let i = 1; i < pts.length; i++) lens.push(lens[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
+  const total = lens[lens.length - 1];
+  if (total <= 1e-9) return [{ p: pts[0], t: 0 }];
+  const out = [];
+  for (let k = 0; k < n; k++) {
+    const s = (k / (n - 1)) * total;
+    let i = 1;
+    while (i < lens.length - 1 && lens[i] < s) i++;
+    const segLen = lens[i] - lens[i - 1];
+    const u = segLen > 1e-9 ? (s - lens[i - 1]) / segLen : 0;
+    out.push({
+      p: [pts[i - 1][0] + (pts[i][0] - pts[i - 1][0]) * u, pts[i - 1][1] + (pts[i][1] - pts[i - 1][1]) * u],
+      t: s / total,
+    });
+  }
+  return out;
+}
+
+function traceCoverage(strokePts, path, r) {
+  const rr = r || 0.7;
+  if (!Array.isArray(strokePts) || strokePts.length < 2 || !Array.isArray(path) || path.length < 2) {
+    return { cover: 0, on: 0, forward: false };
+  }
+  // cover: お手本サンプルのうちストロークの近くにある割合
+  const samples = samplePolyline(path, 48);
+  let covered = 0;
+  for (const s of samples) if (distToPolyline(s.p, strokePts) <= rr) covered++;
+  const cover = covered / samples.length;
+  // on: ストロークサンプルのうちお手本の近くにいる割合
+  const sSamples = samplePolyline(strokePts, 48);
+  let onCnt = 0;
+  for (const s of sSamples) if (distToPolyline(s.p, path) <= rr) onCnt++;
+  const on = onCnt / sSamples.length;
+  // forward: ストローク各点の「お手本上の最寄り位置t」がおおむね増加しているか
+  const ts = sSamples.map((s) => {
+    let best = 0, bd = Infinity;
+    for (const q of samples) {
+      const d = Math.hypot(q.p[0] - s.p[0], q.p[1] - s.p[1]);
+      if (d < bd) { bd = d; best = q.t; }
+    }
+    return best;
+  });
+  let up = 0, down = 0;
+  for (let i = 1; i < ts.length; i++) {
+    if (ts[i] > ts[i - 1] + 1e-9) up++;
+    else if (ts[i] < ts[i - 1] - 1e-9) down++;
+  }
+  const forward = up >= down;
+  return { cover, on, forward };
+}
+
+// なぞり合格判定。opts: { minCover(0.7), minOn(0.5), needForward(false) }
+function tracePasses(strokePts, path, r, opts = {}) {
+  const c = traceCoverage(strokePts, path, r);
+  if (c.cover < (opts.minCover != null ? opts.minCover : 0.7)) return false;
+  if (c.on < (opts.minOn != null ? opts.minOn : 0.5)) return false;
+  if (opts.needForward && !c.forward) return false;
+  return true;
+}
+
 // node(テスト)用エクスポート
 if (typeof module !== "undefined" && module.exports) {
-  module.exports = { screenToWorld, pointInShape, distToSeg, strokeHitScore, strokeHitsShape, pickRegion };
+  module.exports = { screenToWorld, pointInShape, distToSeg, strokeHitScore, strokeHitsShape, pickRegion,
+    distToPolyline, samplePolyline, traceCoverage, tracePasses };
 }

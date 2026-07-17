@@ -137,6 +137,24 @@ for (const scn of scenarios) {
       }
       console.log(`PASS  [${scn.unit}] ${scn.id} quiz(${q.regions.length} regions) OK`);
     }
+    // ---- v3(なぞって解く)の検証: スキーマ+全ステップの状態遷移 ----
+    if (scn.v3) {
+      const v = scn.v3;
+      if (!v.question) throw new Error("v3.question がない");
+      if (!Array.isArray(v.steps) || !v.steps.length) throw new Error("v3.steps が空");
+      const vs = JSON.parse(JSON.stringify(scn.base));
+      frame(vs);
+      for (const s of v.steps) {
+        if (!s.stateKey || !(s.stateKey in scn.base)) throw new Error(`step ${s.id}: stateKey ${s.stateKey} が base にない`);
+        if (!s.trace || !Array.isArray(s.trace.path) || s.trace.path.length < 2) throw new Error(`step ${s.id}: trace.path が不正`);
+        if (!s.expr || typeof s.expr.answer !== "number" || !s.expr.text.includes("□")) throw new Error(`step ${s.id}: expr が不正(□必須)`);
+        if (!s.prompt || !s.ask) throw new Error(`step ${s.id}: prompt/ask がない`);
+        vs[s.stateKey] = 0.35; frame(vs);   // お手本表示
+        vs[s.stateKey] = 1; frame(vs);      // なぞり済み
+      }
+      vs.done = 1; frame(vs);
+      console.log(`PASS  [${scn.unit}] ${scn.id} v3(${v.steps.length} steps) OK`);
+    }
     console.log(`PASS  [${scn.unit}] ${scn.id} (${scn.render}) 全${scn.steps.length}ステップ`);
   } catch (e) {
     console.log(`FAIL  [${scn.unit}] ${scn.id} (${scn.render}): ${e.message}`);

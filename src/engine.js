@@ -9,8 +9,9 @@ const App = {
   scnIdx: 0, stepIdx: 0,
   bctx: null, backend: null,
   from: null, to: null, cur: null, t: 1, dur: 1.4,
-  // ---- quizモード(v2: なぞる→段階ヒント。docs/CONCEPT.md) ----
-  mode: "steps",        // "quiz" | "steps"
+  // ---- quizモード(v2) / solveモード(v3: なぞって解く。docs/V3_DESIGN.md) ----
+  mode: "steps",        // "quiz" | "steps" | "solve"
+  solve: null,          // { idx, await:"trace"|"input"|"done", tries }
   quizState: null,      // quizモードの現在の到達状態(ヒントアニメで進む)
   hintLevels: {},       // regionId → 何段階目まで見たか
   animQueue: [],        // ヒントのマイクロアニメの残りステップ
@@ -92,7 +93,8 @@ function loadScenario(i) {
   App.animQueue = [];
   App.overlay = null;
   App.stroke = null;   // なぞり途中のシナリオ切替で古いストロークを持ち越さない
-  if (scn.quiz) enterQuizMode();       // quiz付きは「問題ファースト」
+  if (scn.v3) enterSolveMode();        // v3: なぞって解く
+  else if (scn.quiz) enterQuizMode();  // v2: 問題ファースト+ヒント
   else { App.mode = "steps"; gotoStep(0, 0.01); }
   syncModeUI();
   syncTabs();
@@ -130,16 +132,144 @@ function enterQuizMode() {
   syncModeUI();
 }
 
-// UI表示のモード切替(quiz: なぞり+答え / steps: コマ送り)
+// UI表示のモード切替(quiz: なぞり+答え / solve: なぞって解く / steps: コマ送り)
 function syncModeUI() {
   const scn = App.scenarios[App.scnIdx];
   const quiz = App.mode === "quiz";
-  const hasQuiz = !!scn.quiz;
-  document.getElementById("stepctl").style.display = quiz ? "none" : "flex";
-  document.getElementById("quizctl").style.display = quiz ? "flex" : "none";
-  document.getElementById("quizhint").style.display = quiz ? "block" : "none";
-  document.getElementById("ansrow").style.display = quiz && scn.quiz && scn.quiz.answer != null ? "flex" : "none";
-  document.getElementById("toQuiz").style.display = !quiz && hasQuiz ? "block" : "none";
+  const solve = App.mode === "solve";
+  const hasProblem = !!scn.quiz || !!scn.v3;
+  document.getElementById("stepctl").style.display = quiz || solve ? "none" : "flex";
+  document.getElementById("quizctl").style.display = quiz || solve ? "flex" : "none";
+  document.getElementById("quizhint").style.display = quiz || solve ? "block" : "none";
+  document.getElementById("ansrow").style.display =
+    (quiz && scn.quiz && scn.quiz.answer != null) ||
+    (solve && App.solve && App.solve.await === "input") ? "flex" : "none";
+  document.getElementById("toQuiz").style.display = !quiz && !solve && hasProblem ? "block" : "none";
+  document.getElementById("exprList").style.display = solve ? "block" : "none";
+  document.getElementById("palette").style.display = solve ? "flex" : "none";
+}
+
+// ==== solveモード(v3: なぞって解く) ====
+function enterSolveMode() {
+  const scn = App.scenarios[App.scnIdx];
+  App.mode = "solve";
+  App.animQueue = [];
+  App.overlay = null;
+  App.stroke = null;
+  App.solve = { idx: 0, await: "trace", tries: 0 };
+  App.quizState = deepClone(scn.base);
+  scn.v3.steps.forEach((s, i) => { App.quizState[s.stateKey] = i === 0 ? 0.35 : 0; });
+  App.to = deepClone(App.quizState);
+  App.from = App.cur ? deepClone(App.cur) : deepClone(App.to);
+  App.t = 0; App.dur = 0.6;
+  document.getElementById("stepchip").textContent = "問題";
+  document.getElementById("caption").textContent = scn.v3.question;
+  document.getElementById("quizhint").textContent = `✍️ ${scn.v3.steps[0].prompt}`;
+  const f = document.getElementById("formula");
+  f.textContent = ""; f.style.display = "none";
+  document.getElementById("dots").innerHTML = "";
+  document.getElementById("answer").value = "";
+  renderSolvePanel();
+  syncModeUI();
+}
+
+// 式リスト(ワイプ出現)とパレットの描き直し
+function renderSolvePanel(wipeCurrent) {
+  const scn = App.scenarios[App.scnIdx];
+  const v3 = scn.v3, sv = App.solve;
+  const list = document.getElementById("exprList");
+  list.innerHTML = "";
+  v3.steps.forEach((s, i) => {
+    if (i > sv.idx) return;                                   // 未来の式はまだ存在しない
+    if (i === sv.idx && sv.await === "trace") return;         // なぞり前は出さない
+    const row = document.createElement("div");
+    const solved = i < sv.idx || sv.await === "done";
+    row.className = "exprRow" + (solved ? " solved" : " current") + (i === sv.idx && wipeCurrent ? " wipe" : "");
+    const num = `<b>${s.expr.answer}</b>`;
+    row.innerHTML = `<span class="eno">${"①②③④⑤"[i] || i + 1}</span> ` +
+      (solved ? s.expr.text.replace("□", num) : s.expr.text) +
+      (solved ? `<span class="eunit">${s.expr.unit || ""}</span>` : "");
+    list.appendChild(row);
+  });
+  // パレット: 最初の数 + これまでに導出した数
+  const pal = document.getElementById("palette");
+  pal.innerHTML = "";
+  const chips = (v3.palette0 || []).map((n) => ({ n, derived: false }));
+  v3.steps.forEach((s, i) => {
+    if (i < sv.idx || sv.await === "done") (s.palette || []).forEach((n) => chips.push({ n, derived: true }));
+  });
+  chips.forEach((c) => {
+    const el = document.createElement("span");
+    el.className = "chip" + (c.derived ? " derived" : "");
+    el.textContent = c.n;
+    pal.appendChild(el);
+  });
+}
+
+// なぞり終わり(solve): 現在ステップのお手本に忠実か判定
+function onSolveStroke(stroke) {
+  const scn = App.scenarios[App.scnIdx];
+  const sv = App.solve;
+  if (!sv || sv.await !== "trace") return;
+  const step = scn.v3.steps[sv.idx];
+  const bubble = document.getElementById("quizhint");
+  const tr = step.trace;
+  if (tracePasses(stroke, tr.path, tr.r, tr)) {
+    App.quizState[step.stateKey] = 1;                 // 本描きに確定
+    App.to = deepClone(App.quizState);
+    App.from = App.cur ? deepClone(App.cur) : deepClone(App.to);
+    App.t = 0; App.dur = 0.5;
+    sv.await = "input";
+    bubble.textContent = `💭 ${step.ask}`;
+    renderSolvePanel(true);                            // 式が薄字でワイプ出現
+    syncModeUI();
+    const ans = document.getElementById("answer");
+    ans.value = ""; ans.focus();
+    return;
+  }
+  // 順番ちがい? 未来のステップのお手本に合っていたら教える
+  const future = scn.v3.steps.slice(sv.idx + 1).some((s) => tracePasses(stroke, s.trace.path, s.trace.r, s.trace));
+  bubble.textContent = future
+    ? "順番があるよ! いま光っている点線からなぞろう。"
+    : "うすい点線を、はしからはしまでゆっくりなぞってみよう。";
+}
+
+// solveの答え合わせ(1ステップぶんの計算)
+function checkSolveAnswer(val) {
+  const scn = App.scenarios[App.scnIdx];
+  const sv = App.solve;
+  const bubble = document.getElementById("quizhint");
+  // なぞりが済んでいない段階の入力は受けない(なぞる=解く、が本体のため)
+  if (!sv || sv.await !== "input") {
+    if (sv && sv.await === "trace") bubble.textContent = "まず、光っている点線をなぞってからだよ。";
+    return;
+  }
+  const step = scn.v3.steps[sv.idx];
+  const pr = markProgress(scn.id, {});
+  if (Math.abs(val - step.expr.answer) < 1e-9) {
+    sv.idx++;
+    document.getElementById("answer").value = "";
+    if (sv.idx >= scn.v3.steps.length) {
+      sv.await = "done";
+      App.quizState.done = 1;
+      markProgress(scn.id, { solved: true, tries: pr.tries + 1 });
+      bubble.textContent = scn.v3.closing || "🎉 とけた!";
+      renderProblemTabs(); syncTabs();
+    } else {
+      sv.await = "trace";
+      const next = scn.v3.steps[sv.idx];
+      App.quizState[next.stateKey] = 0.35;             // 次のお手本を薄く出す
+      bubble.textContent = `✍️ ${next.prompt}`;
+    }
+    App.to = deepClone(App.quizState);
+    App.from = App.cur ? deepClone(App.cur) : deepClone(App.to);
+    App.t = 0; App.dur = 0.5;
+    renderSolvePanel();
+    syncModeUI();
+  } else {
+    markProgress(scn.id, { tries: pr.tries + 1 });
+    bubble.textContent = "おしい! もう一度、式を見ながら計算してみよう。";
+  }
 }
 
 // なぞり(またはタップ)で region がヒットしたとき: 次の段階のヒントを出す
@@ -212,6 +342,7 @@ function checkAnswer() {
   const bubble = document.getElementById("quizhint");
   if (!/^-?\d+(\.\d+)?$/.test(raw)) { bubble.textContent = "数字を入れてから「答え合わせ」を押してね。"; return; }
   const val = parseFloat(raw);
+  if (App.mode === "solve") { checkSolveAnswer(val); return; }
   const pr = markProgress(scn.id, {});
   if (Math.abs(val - scn.quiz.answer) < 1e-9) {
     markProgress(scn.id, { solved: true, tries: pr.tries + 1 });
@@ -258,7 +389,7 @@ function strokePoint(ev) {
 function bindPointer() {
   let activeId = null; // 開始したポインターだけを追う(マルチタッチの混線防止)
   stageEl.addEventListener("pointerdown", (ev) => {
-    if (App.mode !== "quiz" || App.backend.kind !== "canvas2d" || activeId != null) return;
+    if ((App.mode !== "quiz" && App.mode !== "solve") || App.backend.kind !== "canvas2d" || activeId != null) return;
     const p = strokePoint(ev);
     if (!p) return;
     App.stroke = [p];
@@ -279,6 +410,7 @@ function bindPointer() {
     if (!App.stroke) return;
     const scn = App.scenarios[App.scnIdx];
     const stroke = App.stroke; App.stroke = null;
+    if (App.mode === "solve" && scn.v3) { onSolveStroke(stroke); return; }
     if (App.mode !== "quiz" || !scn.quiz || !scn.quiz.regions) return;
     const region = pickRegion(stroke, scn.quiz.regions);
     if (region) onRegionHit(region);
@@ -362,8 +494,13 @@ function init() {
   };
   document.getElementById("replay").onclick = replayStep;
   document.getElementById("toSteps").onclick = switchToSteps;
-  document.getElementById("toQuiz").onclick = enterQuizMode;
-  document.getElementById("qreset").onclick = resetQuizFigure;
+  document.getElementById("toQuiz").onclick = () => {
+    const scn = App.scenarios[App.scnIdx];
+    if (scn.v3) enterSolveMode(); else enterQuizMode();
+  };
+  document.getElementById("qreset").onclick = () => {
+    if (App.mode === "solve") enterSolveMode(); else resetQuizFigure();
+  };
   document.getElementById("check").onclick = checkAnswer;
   document.getElementById("answer").addEventListener("keydown", (e) => {
     if (e.key === "Enter") checkAnswer();
@@ -379,10 +516,16 @@ function init() {
   loadScenario(0);
 
   let last = performance.now();
+  let lastW = 0, lastH = 0;
   const loop = (now) => {
     requestAnimationFrame(loop);
     const dt = Math.min((now - last) / 1000, 0.05);
     last = now;
+    // 下のパネル(式リスト等)の伸縮でステージの大きさが変わったら追従する
+    if (stageEl.clientWidth !== lastW || stageEl.clientHeight !== lastH) {
+      lastW = stageEl.clientWidth; lastH = stageEl.clientHeight;
+      if (App.backend) App.backend.resize();
+    }
     if (App.t < 1) App.t = Math.min(1, App.t + dt / App.dur);
     else if (App.mode === "quiz" && App.animQueue.length) nextQuizAnim(); // ヒントアニメの次のコマへ
     App.cur = lerpStates(App.from, App.to, easeInOut(App.t));
@@ -392,6 +535,12 @@ function init() {
       const remain = App.overlay.until - now;
       if (remain <= 0) App.overlay = null;
       else overlay = { shape: App.overlay.shape, alpha: Math.min(1, remain / 600) * 0.9 };
+    }
+    // solve: いまなぞるべきお手本の始点を脈動させる(入口が分かるように)
+    if (App.mode === "solve" && App.solve && App.solve.await === "trace") {
+      const scn = App.scenarios[App.scnIdx];
+      const step = scn.v3.steps[App.solve.idx];
+      if (step) overlay = { dot: step.trace.path[0], alpha: 0.45 + 0.4 * Math.sin(now / 260) };
     }
     App.backend.frame(App.bctx, App.cur, overlay);
   };
